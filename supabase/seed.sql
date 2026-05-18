@@ -1,0 +1,2 @@
+-- Optional local seed data goes here.
+-- Keep this file present so `npx supabase db reset` can run cleanly even before sample data is added.
