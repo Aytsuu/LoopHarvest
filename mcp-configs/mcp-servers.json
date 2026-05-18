@@ -27,9 +27,9 @@
       "description": "Web scraping and crawling"
     },
     "supabase": {
-      "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref=YOUR_PROJECT_REF"],
-      "description": "Supabase database operations"
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp",
+      "description": "Supabase database operations via hosted MCP with OAuth authentication"
     },
     "memory": {
       "command": "npx",

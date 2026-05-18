@@ -33,6 +33,10 @@ persistent_instructions = "Follow project AGENTS.md guidelines. Use available MC
 [mcp_servers.exa]
 url = "https://mcp.exa.ai/mcp"
 
+[mcp_servers.supabase]
+url = "https://mcp.supabase.com/mcp"
+startup_timeout_sec = 30
+
 [mcp_servers.github]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
