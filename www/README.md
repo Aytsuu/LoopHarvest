@@ -1,6 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is the LoopHarvest frontend built with [Next.js](https://nextjs.org).
 
 ## Getting Started
+
+Create `www/.env.local` for local frontend runtime. Required keys are documented in `.env.example`.
 
 First, run the development server:
 
