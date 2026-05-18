@@ -1,0 +1,29 @@
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID, uuid4
+
+from pydantic import Field
+
+from src.models import ApiModel
+
+
+class ListingBase(ApiModel):
+    title: str = Field(min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=1000)
+    category_slug: str = Field(min_length=1, max_length=64)
+    quantity_kg: Decimal = Field(gt=0)
+    pickup_address: str = Field(min_length=1, max_length=240)
+    city: str = Field(min_length=1, max_length=120)
+    country: str = Field(min_length=1, max_length=120)
+    pickup_window_start: datetime | None = None
+    pickup_window_end: datetime | None = None
+
+class ListingCreate(ListingBase):
+    pass
+
+
+class Listing(ListingBase):
+    id: UUID = Field(default_factory=uuid4)
+    donor_id: UUID
+    status: str = "open"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
