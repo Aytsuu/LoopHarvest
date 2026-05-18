@@ -37,6 +37,10 @@ url = "https://mcp.exa.ai/mcp"
 url = "https://mcp.supabase.com/mcp"
 startup_timeout_sec = 30
 
+[mcp_servers.mapbox-mcp]
+url = "https://mcp.mapbox.com/mcp"
+startup_timeout_sec = 30
+
 [mcp_servers.github]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]

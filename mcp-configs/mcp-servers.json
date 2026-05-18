@@ -81,6 +81,11 @@
       "url": "https://mcp.clickhouse.cloud/mcp",
       "description": "ClickHouse analytics queries"
     },
+    "mapbox-mcp": {
+      "type": "http",
+      "url": "https://mcp.mapbox.com/mcp",
+      "description": "Mapbox geospatial MCP via hosted endpoint with OAuth - geocoding, POI search, routing, isochrones, and static maps"
+    },
     "exa-web-search": {
       "command": "npx",
       "args": ["-y", "exa-mcp-server"],

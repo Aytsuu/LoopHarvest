@@ -1,6 +1,6 @@
 {
   "mcp": {
-    "allowed": ["magic", "token-optimizer", "playwright", "firecrawl" ,"memory", "context7", "github"],
+    "allowed": ["magic", "token-optimizer", "playwright", "firecrawl" ,"memory", "context7", "github", "mapbox-mcp"],
     "excluded": ["experimental-server"]
   },
   "mcpServers": {
@@ -46,6 +46,11 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT_HERE"
       },
       "description": "GitHub operations - PRs, issues, repos"
+    },
+    "mapbox-mcp": {
+      "type": "http",
+      "url": "https://mcp.mapbox.com/mcp",
+      "description": "Mapbox geospatial MCP via hosted endpoint with OAuth - geocoding, POI search, routing, isochrones, and static maps"
     }
   }
 }
