@@ -1,0 +1,6 @@
+{
+  "Obsidian": {
+    "description": "Obsidian vault ingestion on codex session",
+    "command": "codex --sandbox danger-full-access --add-dir D:/vault/personal/LoopHarvest"
+  }
+}

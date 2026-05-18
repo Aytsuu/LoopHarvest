@@ -1,28 +1,37 @@
 # LoopHarvest
 
-### The Scale of Global Food Waste
+## Local Supabase Workflow
 
-Food waste is one of the most consequential - and most solvable - environmental crises of our time.
+This repo now includes the Supabase CLI scaffold under [`supabase/`](/D:/LoopHarvest/supabase). Use the CLI through `npx` so contributors do not need a global install.
 
-- **1.3 billion tonnes** of food is wasted globally every year (FAO, 2023)
-- This represents **one-third** of all food produced for human consumption
-- If food waste were a country, it would be the **third-largest emitter of greenhouse gases** on Earth, behind only the US and China
-- Food waste generates **8-10% of global greenhouse gas emissions** annually
-- The economic value of wasted food exceeds **$1 trillion USD per year**
-- Approximately **690 million people** go to bed hungry every night - in the same world where a third of all food is discarded
+Prerequisites:
+- Docker Desktop running
+- Node/npm available for `npx supabase`
 
-### The Waste Streams Nobody Is Connecting
+Local commands:
 
-The problem is not simply that food spoils. The deeper issue is that enormous quantities of organic material with clear, proven use cases - compost feedstock, animal feed, fermentation inputs, biogas production, soil amendment - are being landfilled or incinerated because the people who have it and the people who need it have no way of finding each other.
+```bash
+npx supabase start
+npx supabase status
+npx supabase db reset
+npx supabase stop
+```
 
-Every day, across every city on every continent:
+The local stack uses:
+- API: `http://127.0.0.1:54321`
+- Studio: `http://127.0.0.1:54323`
+- DB: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
 
-- Households discard vegetable peels, fruit skins, coffee grounds, eggshells, stale bread, and cooking water
-- Restaurants and bakeries throw away end-of-day surplus, oil, bread ends, fish bones, and fruit pulp
-- Farms dump unsorted, blemished, or surplus produce
-- Breweries discard spent grain
-- Urban gardeners pay for compost that a restaurant two blocks away is throwing in the bin
-- Backyard livestock keepers buy feed that a household nearby would give away free
-- Fermenters and artisans search for sourdough discard, whey, and fruit skins with no reliable source
+Remote project workflow:
 
-The gap is not supply. The gap is **visibility and friction**.
+```bash
+npx supabase login
+npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
+npx supabase db pull remote_schema
+npx supabase migration list
+```
+
+Notes:
+- `supabase/config.toml` is configured for the app running on `http://localhost:3000`.
+- The existing migration files remain the source of truth for schema changes.
+- `supabase/seed.sql` is intentionally present so local resets work before seed data is added.
