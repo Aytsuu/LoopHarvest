@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="www/public/logo.png" alt="LoopHarvest Logo" width="100" height="100" style="border-radius: 50%;" />
-</p>
-
 # LoopHarvest
 
 > Next-generation hyper-local food surplus harvesting and community mutual-aid platform.
