@@ -3,7 +3,7 @@
     "description": "Obsidian vault ingestion for ai sessions",
     "command": {
       "codex": "codex --sandbox danger-full-access --add-dir D:/vault/personal/LoopHarvest",
-      "gemini": "gemini --include-directories D:/vault/personal/LoopHarvest"
+      "antigravity": "agy --add-dir D:/vault/personal/LoopHarvest"
     }
   }
 }
