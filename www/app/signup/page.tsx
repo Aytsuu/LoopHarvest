@@ -2,13 +2,15 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User, PlusCircle } from 'lucide-react';
 import Globe from "@/components/Globe";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
+  const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [role, setRole] = React.useState<'donor' | 'recipient'>('donor');
   const [error, setError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const [isLargeScreen, setIsLargeScreen] = React.useState(false);
@@ -24,29 +26,19 @@ export default function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!name || !email || !password) {
       setError('Please fill in all fields');
       return;
     }
     setError('');
     setIsLoading(true);
 
-    // Simulate login loading delay
+    // Simulate signup loading delay
     setTimeout(() => {
       setIsLoading(false);
       document.cookie = "fl_logged_in=true; path=/; max-age=86400";
       router.push('/home');
     }, 1200);
-  };
-
-  const handleOAuthLogin = (provider: string) => {
-    setIsLoading(true);
-    console.log(`Mock OAuth login initiated for provider: ${provider}`);
-    setTimeout(() => {
-      setIsLoading(false);
-      document.cookie = "fl_logged_in=true; path=/; max-age=86400";
-      router.push('/home');
-    }, 800);
   };
 
   return (
@@ -60,18 +52,18 @@ export default function LoginPage() {
       {/* Dark Ambient Vignette overlay */}
       <div className="absolute inset-0 z-1 bg-gradient-to-tr from-[#0A0A0A] via-transparent to-[#0A0A0A]/90 pointer-events-none" />
 
-      {/* Login Card */}
+      {/* Signup Card */}
       <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-white/8 bg-[#141414]/80 p-8 shadow-[0_16px_48px_rgba(0,0,0,0.8)] backdrop-blur-md">
         
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-8">
+        <div className="flex flex-col items-center text-center mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="LoopHarvest" className="h-12 w-12 object-contain rounded-2xl shadow-lg mb-3" />
           <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#E8EAD8]">
-            Sign in to LoopHarvest
+            Create Loop Account
           </h2>
           <p className="text-xs text-[#A8AA98] mt-1.5 max-w-xs">
-            Connect to the hyperlocal circular network and claim carbon diversion rewards.
+            Start saving organic scrap materials and claim your carbon diversion awards.
           </p>
         </div>
 
@@ -83,8 +75,57 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Login Form */}
+        {/* Role Segment Button */}
+        <div className="mb-5 space-y-1.5">
+          <span className="text-xs font-bold text-[#A8AA98]">Select Your Primary Role</span>
+          <div className="flex rounded-xl bg-[#0A0A0A]/60 p-1 border border-white/6">
+            <button
+              type="button"
+              onClick={() => setRole('donor')}
+              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
+                role === 'donor'
+                  ? 'bg-[#2A4A10] text-[#A8D97F]'
+                  : 'text-[#A8AA98] hover:text-[#E8EAD8]'
+              }`}
+            >
+              🍉 Waste Donor
+            </button>
+            <button
+              type="button"
+              onClick={() => setRole('recipient')}
+              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
+                role === 'recipient'
+                  ? 'bg-[#004D48] text-[#4ECDC4]'
+                  : 'text-[#A8AA98] hover:text-[#E8EAD8]'
+              }`}
+            >
+              🐓 Waste Recipient
+            </button>
+          </div>
+        </div>
+
+        {/* Signup Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-[#A8AA98]" htmlFor="name">
+              Organization or Name
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-3 flex items-center text-[#5A5C50]">
+                <User size={16} />
+              </span>
+              <input
+                id="name"
+                type="text"
+                placeholder="Tartine Bakery"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isLoading}
+                className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/10 bg-[#0A0A0A]/60 text-sm text-[#E8EAD8] placeholder-[#5A5C50] focus:border-[#A8D97F] focus:outline-none transition-all disabled:opacity-50"
+              />
+            </div>
+          </div>
+
           <div className="space-y-1">
             <label className="text-xs font-bold text-[#A8AA98]" htmlFor="email">
               Email Address
@@ -96,7 +137,7 @@ export default function LoginPage() {
               <input
                 id="email"
                 type="email"
-                placeholder="chef@bistro.com"
+                placeholder="compost@farm.org"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
@@ -106,18 +147,9 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-[#A8AA98]" htmlFor="password">
-                Password
-              </label>
-              <button 
-                type="button" 
-                onClick={() => alert('Passwords are simulated in mock mode! Enter any password to continue.')}
-                className="text-[11px] font-bold text-[#A8D97F] hover:underline"
-              >
-                Forgot?
-              </button>
-            </div>
+            <label className="text-xs font-bold text-[#A8AA98]" htmlFor="password">
+              Password
+            </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-3 flex items-center text-[#5A5C50]">
                 <Lock size={16} />
@@ -137,56 +169,29 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full h-12 rounded-xl bg-[#A8D97F] text-sm font-black text-[#1A3A05] transition-transform hover:brightness-105 active:scale-[0.98] flex items-center justify-center gap-2 mt-6 disabled:opacity-50"
+            className={`w-full h-12 rounded-xl text-sm font-black transition-transform active:scale-[0.98] flex items-center justify-center gap-2 mt-6 disabled:opacity-50 ${
+              role === 'donor' ? 'bg-[#A8D97F] text-[#1A3A05]' : 'bg-[#4ECDC4] text-[#003733]'
+            }`}
           >
             {isLoading ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A3A05] border-t-transparent" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
             ) : (
               <>
-                <span>Sign In</span>
-                <ShieldCheck size={16} />
+                <span>Create Account</span>
+                <PlusCircle size={16} />
               </>
             )}
           </button>
         </form>
 
-        {/* Divider */}
-        <div className="my-6 flex items-center justify-between text-xs text-[#5A5C50] font-black uppercase tracking-wider">
-          <div className="h-px bg-white/6 flex-1" />
-          <span className="px-3 select-none">Or continue with</span>
-          <div className="h-px bg-white/6 flex-1" />
-        </div>
-
-        {/* OAuth SSO Options */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Log in prompt */}
+        <div className="text-center mt-6 text-xs text-[#A8AA98]">
+          Already have an account?{' '}
           <button
-            onClick={() => handleOAuthLogin('google')}
-            disabled={isLoading}
-            className="flex items-center justify-center gap-2 h-11 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#E8EAD8] hover:bg-[#1B1B1B] hover:border-white/20 transition-all disabled:opacity-50"
-          >
-            <svg className="h-4 w-4 text-[#A8D97F]" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114-3.51 0-6.377-2.87-6.377-6.38s2.867-6.38 6.377-6.38c1.6 0 3.05.59 4.22 1.56l3.03-3.03C18.42 2.16 15.44.925 11.99.925 5.81.925.8 5.935.8 12.115s5.01 11.19 11.19 11.19c6.45 0 10.74-4.53 10.74-11.01 0-.66-.06-1.33-.19-2.01H12.24z"/>
-            </svg>
-            <span>Google</span>
-          </button>
-          <button
-            onClick={() => handleOAuthLogin('apple')}
-            disabled={isLoading}
-            className="flex items-center justify-center gap-2 h-11 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#E8EAD8] hover:bg-[#1B1B1B] hover:border-white/20 transition-all disabled:opacity-50"
-          >
-            <span>🍏</span>
-            <span>Apple ID</span>
-          </button>
-        </div>
-
-        {/* Sign up prompt */}
-        <div className="text-center mt-8 text-xs text-[#A8AA98]">
-          Don&apos;t have an account?{' '}
-          <button
-            onClick={() => router.push('/signup')}
+            onClick={() => router.push('/login')}
             className="font-bold text-[#A8D97F] hover:underline"
           >
-            Create an account
+            Sign in
           </button>
         </div>
 
