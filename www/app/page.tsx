@@ -75,25 +75,12 @@ export default function LandingPage() {
   return (
     <main className="flex min-h-screen w-full flex-col bg-[#0A0A0A] text-[#E8EAD8] lg:h-screen lg:flex-row lg:overflow-hidden">
       <section className="flex w-full shrink-0 flex-col border-r border-white/6 bg-[#0A0A0A] lg:h-full lg:w-120 lg:overflow-y-auto xl:w-140 scrollbar-none">
-        <div className="sticky py-4 top-0 z-30 flex h-20 w-full items-center justify-between border-b border-white/6 bg-[#0A0A0A]/95 px-6 sm:px-10 lg:px-12 backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 object-contain rounded-full" />
-            <span className="font-display text-2xl font-extrabold tracking-tight text-[#A8D97F] select-none">LoopHarvest</span>
-          </div>
-          <button
-            onClick={() => router.push('/login')}
-            className="rounded-full border border-white/10 bg-[#141414] px-4 py-2 text-xs font-black transition hover:border-white/20 hover:bg-[#1B1B1B]"
-          >
-            Sign In
-          </button>
-        </div>
-
         <div className="flex-1 space-y-12 p-6 sm:p-10 lg:p-12">
-          <div className="space-y-4 pt-4">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-[#2A4A10] px-3 py-1 text-[11px] font-black uppercase tracking-wider text-[#C4F09A]">
-              <Sparkles size={11} />
-              <span>Hyperlocal Circular Economy</span>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 object-contain rounded-full" />
+              <span className="font-display text-xl font-extrabold tracking-tight text-[#A8D97F] select-none">LoopHarvest</span>
             </div>
             <h1 className="font-display text-4xl font-extrabold leading-tight tracking-tight text-[#E8EAD8] md:text-5xl">
               Divert Food Waste.<br />

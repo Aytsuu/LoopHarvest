@@ -419,7 +419,7 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <div className="py-12 text-center text-xs text-[#5A5C50] bg-[#1B1B1B] border border-white/6 rounded-2xl">
-                    🍉 You haven&apos;t posted any waste materials yet. Select Create Post to get started.
+                    You haven&apos;t posted any waste materials yet. Select Create Post to get started.
                   </div>
                 )
               ) : (
@@ -431,7 +431,7 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <div className="py-12 text-center text-xs text-[#5A5C50] bg-[#1B1B1B] border border-white/6 rounded-2xl">
-                    🐓 You haven&apos;t requested any scraps yet.
+                    You haven&apos;t requested any scraps yet.
                   </div>
                 )
               )}
