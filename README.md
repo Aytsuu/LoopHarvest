@@ -154,19 +154,3 @@ We believe that local actions lead to global impact. Our analytics are tied dire
     └── public/              # Visual assets, branding icons, and mockups
 ```
 
----
-
-## Development & Code Quality Guidelines
-
-Contributors are encouraged to follow our core quality guidelines:
-
-1. **Immutability First**: Never mutate existing state arrays or objects directly; always return modified copies to ensure clean React rendering.
-2. **Modular Components**: Keep components small (<400 lines), cohesive, and highly isolated.
-3. **Test-Driven Development (TDD)**: Aim for 80%+ test coverage across backend routers and core client utility layers.
-4. **Input Validation**: All incoming requests are strictly checked at boundary endpoints to ensure complete injection and XSS defenses.
-
----
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
