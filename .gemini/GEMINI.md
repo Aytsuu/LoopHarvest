@@ -8,6 +8,12 @@ Everything Claude Code (ECC) is a cross-harness coding system with 36 specialize
 
 Gemini support is currently focused on a strong project-local instruction layer via `.gemini/GEMINI.md`, plus the shared MCP catalog and package-manager setup assets shipped by the installer.
 
+## Operational Scope
+
+- **Default Scope:** You are mandated to work **exclusively on the frontend** codebase.
+- **Backend Changes:** Do NOT modify any files in the `api/` directory unless the user explicitly instructs you to perform backend changes for a specific task.
+- **Research:** You may read backend files for context or verification, but implementation must remain frontend-only by default.
+
 ## Core Workflow
 
 1. Plan before editing large features.

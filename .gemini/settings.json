@@ -1,29 +1,63 @@
 {
   "mcp": {
-    "allowed": ["magic", "token-optimizer", "playwright", "firecrawl" ,"memory", "context7", "github"],
-    "excluded": ["experimental-server"]
+    "allowed": [
+      "magic",
+      "mui-mcp",
+      "token-optimizer",
+      "playwright",
+      "firecrawl",
+      "memory",
+      "context7",
+      "github",
+      "mapbox-mcp"
+    ],
+    "excluded": [
+      "experimental-server"
+    ]
   },
   "mcpServers": {
     "magic": {
       "command": "npx",
-      "args": ["-y", "@magicuidesign/mcp@latest"],
+      "args": [
+        "-y",
+        "@magicuidesign/mcp@latest"
+      ],
       "description": "Magic UI components",
       "timeout": 30000,
       "trust": true
     },
+    "mui-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mui/mcp@latest"
+      ]
+    },
     "token-optimizer": {
       "command": "npx",
-      "args": ["-y", "token-optimizer-mcp"],
+      "args": [
+        "-y",
+        "token-optimizer-mcp"
+      ],
       "description": "Token optimization for 95%+ context reduction via content deduplication and compression"
     },
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp", "--browser", "chrome"],
+      "args": [
+        "-y",
+        "@playwright/mcp",
+        "--browser",
+        "chrome"
+      ],
       "description": "Browser automation and testing via Playwright"
     },
     "firecrawl": {
       "command": "npx",
-      "args": ["-y", "firecrawl-mcp"],
+      "args": [
+        "-y",
+        "firecrawl-mcp"
+      ],
       "env": {
         "FIRECRAWL_API_KEY": "YOUR_FIRECRAWL_KEY_HERE"
       },
@@ -31,21 +65,35 @@
     },
     "memory": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
       "description": "Persistent memory across sessions"
     },
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ],
       "description": "Live documentation lookup — use with /docs command and documentation-lookup skill (resolve-library-id, query-docs)."
     },
     "github": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT_HERE"
       },
       "description": "GitHub operations - PRs, issues, repos"
+    },
+    "mapbox-mcp": {
+      "type": "http",
+      "url": "https://mcp.mapbox.com/mcp",
+      "description": "Mapbox geospatial MCP via hosted endpoint with OAuth - geocoding, POI search, routing, isochrones, and static maps"
     }
   }
 }

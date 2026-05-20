@@ -1,19 +1,323 @@
 @import "tailwindcss";
 
+@theme {
+  --animate-fade-in: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in-up: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-blur-in: blur-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-shimmer: shimmer 2s linear infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes blur-in {
+    from {
+      opacity: 0;
+      filter: blur(8px);
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: scale(1);
+    }
+  }
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.93);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
 :root {
-  --background: #f3efe7;
-  --foreground: #201815;
+  /* ── BACKGROUND SURFACES (Tonal Elevation Model) ── */
+  --color-bg:                  #0A0A0A;   /* Base canvas — near-black, neutral dark */
+  --color-surface-0:           #0E0E0E;   /* Same as bg, for explicit zero-elevation */
+  --color-surface-1:           #141414;   /* Cards, bottom nav — +5% tonal lift */
+  --color-surface-2:           #1B1B1B;   /* Dialogs, sheets — +8% tonal lift */
+  --color-surface-3:           #222222;   /* Tooltips, menus — +11% tonal lift */
+  --color-surface-4:           #2A2A2A;   /* Snackbars, FAB container */
+  --color-surface-5:           #323232;   /* Highest elevation surface */
+
+
+  /* ── PRIMARY (Brand Green) ── */
+  --color-primary:                 #A8D97F;   /* Primary actions, FAB, key highlights */
+  --color-on-primary:              #1A3A05;   /* Text/icon ON primary color */
+  --color-primary-container:       #2A4A10;   /* Tinted container (chips, tags, selected) */
+  --color-on-primary-container: #C4F09A;  /* Text on primary container */
+
+  /* ── SECONDARY (Warm Amber) ── */
+  --color-secondary:                   #E8A838;
+  --color-on-secondary:                #3D2800;
+  --color-secondary-container: #4A3200;
+  --color-on-secondary-container: #FFDF9E;
+
+  /* ── TERTIARY (Teal) ── */
+  --color-tertiary:            #4ECDC4;
+  --color-on-tertiary:         #003733;
+  --color-tertiary-container:  #004D48;
+  --color-on-tertiary-container: #7EF8EF;
+
+  /* ── ERROR ── */
+  --color-error:               #E05656;
+  --color-on-error:            #5C0000;
+  --color-error-container: #7A1010;
+  --color-on-error-container: #FFB4AB;
+
+  /* ── TEXT ── */
+  --color-text-primary:  #E8EAD8;   /* High emphasis — near-white, warm */
+  --color-text-secondary:#A8AA98;   /* Medium emphasis */
+  --color-text-disabled: #5A5C50;   /* Disabled / placeholder */
+  --color-text-inverse:  #1A1C10;   /* Text on light surfaces */
+
+  /* ── OUTLINE / BORDER ── */
+  --color-outline:         rgba(255,255,255,0.10);
+  --color-outline-variant: rgba(255,255,255,0.06);
+
+  /* ── CATEGORY COLORS (waste types) ── */
+  --cat-vegetable-scraps:  #7FFF6A;   /* Vegetable scraps */
+  --cat-coffee-grounds:     #C8855A;   /* Coffee grounds */
+  --cat-fruit-waste:      #FF9F40;   /* Fruit waste */
+  --cat-spent-grain:      #E5C55A;   /* Spent grain */
+  --cat-bread-stale:      #D4A97A;   /* Stale bread */
+  --cat-fish-scraps:       #5AC8E5;   /* Fish scraps */
+  --cat-fruit-peels:      #E57A5A;   /* Fruit peels */
+  --cat-cooking-oil:        #B5E550;   /* Cooking oil */
+  --cat-other:      #A0A090;   /* Other / misc */
+
+  /* ── STATUS COLORS ── */
+  --status-open:      #A8D97F;   /* Open request or listing */
+  --status-claimed:   #E8A838;   /* Claimed, awaiting pickup */
+  --status-completed: #4ECDC4;   /* Successfully completed */
+  --status-expired:   #5A5C50;   /* Expired */
+
+  /* ── INTERACTIVE STATES ── */
+  --state-hover:   rgba(168, 217, 127, 0.08);
+  --state-pressed: rgba(168, 217, 127, 0.12);
+  --state-focused: rgba(168, 217, 127, 0.12);
+  --state-dragged: rgba(168, 217, 127, 0.16);
+
+  /* ── ELEVATION SHADOWS (used sparingly) ── */
+  --elevation-1: 0 1px 3px rgba(0,0,0,0.5);
+  --elevation-2: 0 2px 8px rgba(0,0,0,0.6);
+  --elevation-3: 0 4px 16px rgba(0,0,0,0.7);
+
+  /* ── SPACING TOKENS ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ── BORDER RADIUS ── */
+  --radius-xs:   4px;    /* Chips tight variant, small badges */
+  --radius-sm:   8px;    /* Chips, tags, small cards */
+  --radius-md:   12px;   /* Standard cards, buttons, inputs */
+  --radius-lg:   16px;   /* Sheet headers, modal tops */
+  --radius-xl:   24px;   /* Bottom sheets, large cards */
+  --radius-full: 9999px; /* Pills, FAB circles, avatar rings */
+
+  /* ── TRANSITIONS ── */
+  --transition-fast:   100ms ease-out;   /* Hover color changes */
+  --transition-base:   200ms ease-out;   /* Most state changes */
+  --transition-slow:   300ms cubic-bezier(0.4, 0, 0.2, 1); /* Sheet, dialog enter */
+  --transition-bounce: 400ms cubic-bezier(0.34, 1.56, 0.64, 1); /* FAB, success states */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-fraunces);
-  --font-mono: var(--font-jetbrains-mono);
-}
-
+/* Base Body Resets */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-fraunces), serif;
+  background-color: var(--color-bg) !important;
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
+
+/* Custom Outlines */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Ticker Animations */
+@keyframes ticker {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+.animate-ticker {
+  display: flex;
+  flex-direction: column;
+  animation: ticker 35s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Mapbox GL Map Custom Layouts */
+.mapboxgl-popup-content {
+  background: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--color-outline) !important;
+}
+
+.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
+  border-top-color: var(--color-surface-2) !important;
+}
+
+/* ── CLASSIC DARK THEME OVERRIDES ── */
+.theme-classic-dark {
+  --color-primary:                 #FFFFFF !important;   /* Clean sleek white */
+  --color-on-primary:              #0A0A0A !important;   /* Near-black text on white primary */
+  --color-primary-container:       #222222 !important;   /* Charcoal grey container */
+  --color-on-primary-container:    #E5E7EB !important;   /* Bright silver/white text on dark grey */
+  
+  --state-hover:   rgba(255, 255, 255, 0.08) !important;
+  --state-pressed: rgba(255, 255, 255, 0.12) !important;
+  --state-focused: rgba(255, 255, 255, 0.12) !important;
+  --state-dragged: rgba(255, 255, 255, 0.16) !important;
+
+  --status-open:      #D1D5DB !important;   /* Sleek grey open status */
+}
+
+/* Override hardcoded tailwind green colors for Classic Dark */
+.theme-classic-dark .bg-\[\#A8D97F\] {
+  background-color: var(--color-primary) !important;
+}
+.theme-classic-dark .text-\[\#A8D97F\] {
+  color: var(--color-primary) !important;
+}
+.theme-classic-dark .border-\[\#A8D97F\] {
+  border-color: var(--color-primary) !important;
+}
+.theme-classic-dark .border-\[\#A8D97F\]\/10 {
+  border-color: rgba(255, 255, 255, 0.10) !important;
+}
+.theme-classic-dark .border-\[\#A8D97F\]\/20 {
+  border-color: rgba(255, 255, 255, 0.20) !important;
+}
+.theme-classic-dark .border-\[\#A8D97F\]\/30 {
+  border-color: rgba(255, 255, 255, 0.30) !important;
+}
+.theme-classic-dark .bg-\[\#A8D97F\]\/10 {
+  background-color: rgba(255, 255, 255, 0.10) !important;
+}
+.theme-classic-dark .bg-\[\#A8D97F\]\/20 {
+  background-color: rgba(255, 255, 255, 0.20) !important;
+}
+.theme-classic-dark .bg-\[\#A8D97F\]\/30 {
+  background-color: rgba(255, 255, 255, 0.30) !important;
+}
+
+/* Lighter green hover/active button state */
+.theme-classic-dark .hover\:bg-\[\#B8E890\]:hover {
+  background-color: #E5E7EB !important;
+}
+.theme-classic-dark .hover\:brightness-105:hover {
+  filter: brightness(0.9) !important;
+}
+
+/* Deep container green variables */
+.theme-classic-dark .bg-\[\#2A4A10\] {
+  background-color: var(--color-primary-container) !important;
+}
+.theme-classic-dark .text-\[\#2A4A10\] {
+  color: var(--color-primary-container) !important;
+}
+.theme-classic-dark .border-\[\#2A4A10\] {
+  border-color: var(--color-primary-container) !important;
+}
+.theme-classic-dark .bg-\[\#2A4A10\]\/20 {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+.theme-classic-dark .bg-\[\#2A4A10\]\/30 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Light green text variables */
+.theme-classic-dark .text-\[\#C4F09A\] {
+  color: var(--color-on-primary-container) !important;
+}
+.theme-classic-dark .bg-\[\#C4F09A\]\/10 {
+  background-color: rgba(229, 231, 235, 0.10) !important;
+}
+
+/* On-primary deep green variables */
+.theme-classic-dark .text-\[\#1A3A05\] {
+  color: var(--color-on-primary) !important;
+}
+.theme-classic-dark .bg-\[\#1A3A05\] {
+  background-color: var(--color-on-primary) !important;
+}
+.theme-classic-dark .bg-\[\#1A3A05\]\/10 {
+  background-color: rgba(255, 255, 255, 0.10) !important;
+}
+.theme-classic-dark .text-\[\#1A3A05\]\/70 {
+  color: rgba(10, 10, 10, 0.70) !important;
+}
+
+/* ── HIGH CONTRAST OVERRIDES ── */
+.high-contrast {
+  --color-text-secondary: #F3F4F6 !important;
+  --color-text-disabled: #D1D5DB !important;
+  --color-outline: rgba(255, 255, 255, 0.30) !important;
+  --color-outline-variant: rgba(255, 255, 255, 0.20) !important;
+}
+
+/* ── REDUCE MOTION OVERRIDES ── */
+.reduce-motion,
+.reduce-motion * {
+  animation-delay: -1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* ── INTERFACE DENSITY OVERRIDES ── */
+html.density-compact {
+  font-size: 14px !important;
+}
+html.density-comfortable {
+  font-size: 16px !important;
+}
+html.density-spacious {
+  font-size: 18px !important;
+}
+

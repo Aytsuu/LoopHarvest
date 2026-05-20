@@ -1,0 +1,284 @@
+'use client';
+
+import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { ChevronRight, ChevronLeft, Send, Scale, Info } from 'lucide-react';
+import { mockStore } from '@/lib/mockStore';
+import { CATEGORIES, CategorySlug } from '@/lib/categories';
+
+export default function PostRequestPage() {
+  const router = useRouter();
+  const [step, setStep] = React.useState(1);
+
+  // Form Fields State
+  const [title, setTitle] = React.useState('');
+  const [category, setCategory] = React.useState<CategorySlug>('vegetable-scraps');
+  const [minQuantity, setMinQuantity] = React.useState<number>(5);
+  const [maxQuantity, setMaxQuantity] = React.useState<number>(20);
+  const [unit, setUnit] = React.useState('kg');
+  const [frequency, setFrequency] = React.useState<'one-time' | 'weekly' | 'monthly'>('weekly');
+  const [description, setDescription] = React.useState('');
+
+  const handleNext = () => {
+    if (step === 1 && !title.trim()) {
+      alert('Please fill in a descriptive title for your appeal.');
+      return;
+    }
+    setStep(prev => prev + 1);
+  };
+
+  const handlePrev = () => {
+    setStep(prev => prev - 1);
+  };
+
+  const handlePublish = () => {
+    if (!description.trim()) {
+      alert('Please describe your needs so donors understand how materials will be utilized.');
+      return;
+    }
+    if (minQuantity <= 0 || maxQuantity < minQuantity) {
+      alert('Ensure maximum quantity is greater than or equal to minimum quantity.');
+      return;
+    }
+
+    mockStore.addRequest(
+      title,
+      category,
+      minQuantity,
+      maxQuantity,
+      unit,
+      frequency,
+      description
+    );
+
+    // Dispatch event to show Toast success
+    const event = new CustomEvent('post-created', {
+      detail: `Urgent appeal published! "${title}" is now active.`
+    });
+    window.dispatchEvent(event);
+
+    router.push('/home');
+  };
+
+  return (
+    <main className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#E8EAD8]">
+      <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
+        <button
+          onClick={() => {
+            if (step > 1) handlePrev();
+            else router.push('/home');
+          }}
+          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] hover:bg-white/8 transition"
+        >
+          Back
+        </button>
+        <span className="font-display text-lg font-bold tracking-tight">Post Appeal Request</span>
+        <span className="w-[52px]" />
+      </div>
+
+      {/* Progress Stepper Bar */}
+      <div className="w-full bg-[#141414] py-3.5 border-b border-white/6 px-4">
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          {[1, 2].map((num) => (
+            <div key={num} className="flex items-center flex-1 last:flex-none">
+              <div 
+                className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  step === num 
+                    ? 'bg-[#4ECDC4] text-[#003733] scale-110 shadow-lg' 
+                    : step > num 
+                      ? 'bg-[#004D48] text-[#4ECDC4]' 
+                      : 'bg-[#1B1B1B] text-[#5A5C50] border border-white/6'
+                }`}
+              >
+                {num}
+              </div>
+              {num < 2 && (
+                <div 
+                  className={`h-0.5 flex-1 mx-2 transition-all ${
+                    step > num ? 'bg-[#004D48]' : 'bg-[#1B1B1B]'
+                  }`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Inner Form content container */}
+      <div className="flex-1 max-w-md w-full mx-auto p-6 flex flex-col justify-between pb-24 md:pb-6">
+        
+        {/* STEP 1: TITLE, CATEGORY & FREQUENCY */}
+        {step === 1 && (
+          <div className="space-y-6">
+            <div className="space-y-1">
+              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">What materials do you need?</h2>
+              <p className="text-xs text-[#A8AA98]">Create an appeal request so local food businesses can route scraps directly to you.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[#A8AA98]">Appeal Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sourdough discards for poultry feed..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#4ECDC4] focus:outline-none transition-all"
+                />
+              </div>
+
+              {/* Cadence frequency selection */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#A8AA98]">Supply Cadence</label>
+                <div className="flex rounded-xl bg-[#141414] p-1 border border-white/6">
+                  {(['one-time', 'weekly', 'monthly'] as const).map((freq) => (
+                    <button
+                      key={freq}
+                      type="button"
+                      onClick={() => setFrequency(freq)}
+                      className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all capitalize ${
+                        frequency === freq
+                          ? 'bg-[#004D48] text-[#4ECDC4]'
+                          : 'text-[#A8AA98] hover:text-[#E8EAD8]'
+                      }`}
+                    >
+                      {freq}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Material categories grid */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#A8AA98]">Select Desired Category</label>
+                <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1 pb-1 scrollbar-none">
+                  {CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.slug}
+                      type="button"
+                      onClick={() => setCategory(cat.slug)}
+                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
+                        category === cat.slug
+                          ? 'bg-[#004D48] border-[#4ECDC4] text-[#4ECDC4]'
+                          : 'bg-[#141414] border-white/6 text-[#E8EAD8] hover:border-white/12'
+                      }`}
+                    >
+                      <span className="text-lg">{cat.emoji}</span>
+                      <span className="truncate">{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: QUANTITY RANGES & DETAILS */}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div className="space-y-1">
+              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">Specify capacity & describe need</h2>
+              <p className="text-xs text-[#A8AA98]">Configure weight ranges and explain what the material will be used for.</p>
+            </div>
+
+            <div className="space-y-4">
+              
+              {/* Range block */}
+              <div className="bg-[#141414] p-5 rounded-2xl border border-white/6 space-y-4">
+                <div className="flex justify-center items-center gap-2">
+                  <Scale size={20} className="text-[#4ECDC4]" />
+                  <span className="font-display text-base font-bold text-[#4ECDC4]">Target Range Needed</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[#A8AA98] uppercase block text-center">Min</label>
+                    <input
+                      type="number"
+                      value={minQuantity}
+                      onChange={(e) => setMinQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#E8EAD8] focus:border-[#4ECDC4] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[#A8AA98] uppercase block text-center">Max</label>
+                    <input
+                      type="number"
+                      value={maxQuantity}
+                      onChange={(e) => setMaxQuantity(Math.max(minQuantity, parseInt(e.target.value) || minQuantity))}
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#E8EAD8] focus:border-[#4ECDC4] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[#A8AA98] uppercase block text-center">Unit</label>
+                    <select
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-bold text-xs text-[#E8EAD8] focus:border-[#4ECDC4] focus:outline-none"
+                    >
+                      <option value="kg">kg</option>
+                      <option value="pieces">pcs</option>
+                      <option value="liters">liters</option>
+                      <option value="lbs">lbs</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description Details */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[#A8AA98]">How will you use this waste?</label>
+                <textarea
+                  placeholder="e.g. Supplement feed for organic poultry. Looking for consistent spent grain shipments. Can handle pickup directly."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  className="w-full p-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#4ECDC4] focus:outline-none leading-relaxed resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 text-[10px] text-[#A8AA98] leading-relaxed px-1 bg-[#141414]/40 p-3.5 rounded-xl border border-white/6">
+                <Info size={14} className="text-[#4ECDC4] shrink-0 mt-0.5" />
+                <span>You will earn +10 XP immediately upon posting, and an additional +30 XP once a compatible donor coordinates with you.</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEPS CONTROL NAVIGATION */}
+        <div className="mt-8 flex gap-3 pt-4 border-t border-white/6">
+          {step > 1 && (
+            <button
+              onClick={handlePrev}
+              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#E8EAD8] hover:bg-[#1B1B1B] transition flex-1"
+            >
+              <ChevronLeft size={16} />
+              <span>Back</span>
+            </button>
+          )}
+
+          {step < 2 ? (
+            <button
+              onClick={handleNext}
+              className="flex items-center justify-center gap-1 rounded-xl bg-[#4ECDC4] px-4 py-3.5 text-xs font-black text-[#003733] transition hover:brightness-105 active:scale-98 flex-1"
+            >
+              <span>Continue</span>
+              <ChevronRight size={16} />
+            </button>
+          ) : (
+            <button
+              onClick={handlePublish}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#4ECDC4] px-4 py-3.5 text-xs font-black text-[#003733] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg"
+            >
+              <span>Publish Appeal</span>
+              <Send size={14} />
+            </button>
+          )}
+        </div>
+
+      </div>
+    </main>
+  );
+}

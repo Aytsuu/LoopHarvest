@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/auth"];
+const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/auth"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
@@ -11,51 +11,69 @@ export async function proxy(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (!supabaseUrl || !supabasePublishableKey) {
-    return response;
+  let user = null;
+  if (supabaseUrl && supabasePublishableKey) {
+    try {
+      const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
+        db: {
+          schema: "api",
+        },
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            response = NextResponse.next({
+              request,
+            });
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      });
+
+      const {
+        data: { user: sbUser },
+      } = await supabase.auth.getUser();
+      user = sbUser;
+    } catch (e) {
+      console.error("Supabase auth error in proxy middleware:", e);
+    }
   }
 
-  const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
-    db: {
-      schema: "api",
-    },
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({
-          request,
-        });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
+  // Check mock session cookie
+  const isMockLoggedIn = request.cookies.get("fl_logged_in")?.value === "true";
+  const isAuthenticated = !!user || isMockLoggedIn;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const pathname = request.nextUrl.pathname;
 
-  const isProtectedPath = request.nextUrl.pathname.startsWith("/dashboard");
-  const isPublicPath = PUBLIC_PATH_PREFIXES.some((prefix) =>
-    request.nextUrl.pathname.startsWith(prefix),
+  // Route /home only (Answers question 1 of implementation plan)
+  // Consolidate /dashboard by redirecting it to /home
+  if (pathname.startsWith("/dashboard")) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/home";
+    homeUrl.search = "";
+    return NextResponse.redirect(homeUrl);
+  }
+
+  const isPublicPath = pathname === "/" || PUBLIC_PATH_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
   );
 
-  if (!user && isProtectedPath) {
+  if (!isAuthenticated && !isPublicPath) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("next", request.nextUrl.pathname);
+    loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (user && isPublicPath) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    dashboardUrl.search = "";
-    return NextResponse.redirect(dashboardUrl);
+  if (isAuthenticated && isPublicPath) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/home";
+    homeUrl.search = "";
+    return NextResponse.redirect(homeUrl);
   }
 
   return response;

@@ -1,0 +1,84 @@
+{
+    "mcp": {
+        "allowed": [
+            "magic",
+            "mui-mcp",
+            "token-optimizer",
+            "playwright",
+            "firecrawl",
+            "memory",
+            "context7",
+            "github",
+            "mapbox-mcp"
+        ]
+    },
+    "mcpServers": {
+        "magic": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@magicuidesign/mcp@latest"
+            ]
+        },
+        "mui-mcp": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@mui/mcp@latest"
+            ]
+        },
+        "token-optimizer": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "token-optimizer-mcp"
+            ]
+        },
+        "playwright": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@playwright/mcp",
+                "--browser",
+                "chrome"
+            ]
+        },
+        "firecrawl": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "firecrawl-mcp"
+            ],
+            "env": {
+                "FIRECRAWL_API_KEY": "YOUR_FIRECRAWL_KEY_HERE"
+            }
+        },
+        "memory": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-memory"
+            ]
+        },
+        "context7": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@upstash/context7-mcp@latest"
+            ]
+        },
+        "github": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-github"
+            ],
+            "env": {
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT_HERE"
+            }
+        },
+        "mapbox-mcp": {
+            "serverUrl": "https://mcp.mapbox.com/mcp"
+        }
+    }
+}

@@ -1,15 +1,29 @@
 import type { Metadata } from "next";
-import { Fraunces, JetBrains_Mono } from "next/font/google";
+import { Syne, DM_Sans, DM_Mono } from "next/font/google";
+import { AppRouterCacheProvider } from '@mui/material-nextjs/v14-appRouter';
+import { ThemeProvider } from '@mui/material/styles';
+import InitColorSchemeScript from '@mui/material/InitColorSchemeScript';
+import theme from '@/lib/theme';
 import "./globals.css";
+import ThemeSync from "@/components/common/ThemeSync";
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const syne = Syne({
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+  variable: "--font-syne",
 });
 
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const dmSans = DM_Sans({
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-dm-sans",
+});
+
+const dmMono = DM_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-dm-mono",
 });
 
 export const metadata: Metadata = {
@@ -25,9 +39,19 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${jetBrainsMono.variable} h-full antialiased`}
+      className={`${syne.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#0A0A0A] text-[#E8EAD8]" suppressHydrationWarning>
+        <ThemeSync />
+        <InitColorSchemeScript attribute="class" defaultMode="dark" />
+        <AppRouterCacheProvider>
+          <ThemeProvider theme={theme}>
+            {children}
+          </ThemeProvider>
+        </AppRouterCacheProvider>
+      </body>
     </html>
   );
 }
+
