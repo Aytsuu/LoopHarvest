@@ -2,6 +2,7 @@
   "mcp": {
     "allowed": [
       "magic",
+      "mui-mcp",
       "token-optimizer",
       "playwright",
       "firecrawl",
