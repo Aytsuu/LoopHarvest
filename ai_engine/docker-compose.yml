@@ -1,0 +1,20 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: loopharvest-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama/models:/root/.ollama
+    restart: unless-stopped
+
+  gateway:
+    build: ./gateway
+    container_name: loopharvest-ai-gateway
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./gateway/.env
+    depends_on:
+      - ollama
+    restart: unless-stopped
