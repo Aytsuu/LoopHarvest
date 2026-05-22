@@ -3,10 +3,11 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, ChevronLeft, Send, Sparkles, Scale, Info } from 'lucide-react';
-import { mockStore } from '@/lib/mockStore';
-import { CATEGORIES, CategorySlug, catMap } from '@/lib/categories';
+import { useCategories } from '@/components/common/CategoriesProvider';
+import { apiClient } from '@/lib/api/client';
+import type { CategorySlug } from '@/lib/categories';
 
-const PHOTO_PRESETS: Record<CategorySlug, string[]> = {
+const PHOTO_PRESETS: Record<string, string[]> = {
   'vegetable-scraps': [
     'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?q=80&w=600&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1557844352-761f2565b576?q=80&w=600&auto=format&fit=crop'
@@ -27,14 +28,13 @@ const PHOTO_PRESETS: Record<CategorySlug, string[]> = {
     'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?q=80&w=600&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=600&auto=format&fit=crop'
   ],
-  'fish-scraps': [
+  'fish-bones-shells': [
     'https://images.unsplash.com/photo-1534604973900-c43ab4c2e0ab?q=80&w=600&auto=format&fit=crop'
   ],
-  'fruit-peels': [
-    'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1590005354167-6da97870c913?q=80&w=600&auto=format&fit=crop'
+  'tea-leaves': [
+    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?q=80&w=600&auto=format&fit=crop'
   ],
-  'cooking-oil': [
+  'cooking-oil-used': [
     'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?q=80&w=600&auto=format&fit=crop'
   ],
   'other': [
@@ -43,6 +43,7 @@ const PHOTO_PRESETS: Record<CategorySlug, string[]> = {
 };
 
 export default function PostListingPage() {
+  const { categories, getCategory } = useCategories();
   const router = useRouter();
   const [step, setStep] = React.useState(1);
 
@@ -57,7 +58,26 @@ export default function PostListingPage() {
     return presets[0] || '';
   });
 
+  React.useEffect(() => {
+    if (categories.length === 0) {
+      return;
+    }
+
+    const categoryExists = categories.some((item) => item.slug === category);
+    if (categoryExists) {
+      return;
+    }
+
+    const nextCategory = categories[0].slug;
+    const presets = PHOTO_PRESETS[nextCategory] || PHOTO_PRESETS.other;
+    setTimeout(() => {
+      setCategory(nextCategory);
+      setSelectedPhoto(presets[0] || '');
+    }, 0);
+  }, [categories, category]);
+
   const activeCatPresets = PHOTO_PRESETS[category] || PHOTO_PRESETS['other'];
+  const activeCategory = getCategory(category);
 
   const handleNext = () => {
     if (step === 1 && !title.trim()) {
@@ -79,34 +99,37 @@ export default function PostListingPage() {
     setStep(prev => prev - 1);
   };
 
-  const handlePublish = () => {
-    mockStore.addListing(
-      title,
-      category,
-      quantity,
-      unit,
-      description,
-      selectedPhoto
-    );
+  const handlePublish = async () => {
+    try {
+      await apiClient.createListing({
+        title,
+        category_slug: category,
+        quantity_kg: quantity,
+        description,
+        photo_url: selectedPhoto,
+        pickup_address: 'Pickup details shared after claim',
+        city: 'San Francisco',
+        country: 'United States',
+      });
 
-    // Dispatch custom post created event to trigger Layout toasts
-    const event = new CustomEvent('post-created', {
-      detail: `Donation posted! "${title}" is now listed near you.`
-    });
-    window.dispatchEvent(event);
-
-    router.push('/home');
+      window.dispatchEvent(new CustomEvent('post-created', {
+        detail: `Donation posted! "${title}" is now listed near you.`
+      }));
+      router.push('/home');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Unable to publish this listing.');
+    }
   };
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#E8EAD8]">
+    <main className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#FFFFFF]">
       <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
         <button
           onClick={() => {
             if (step > 1) handlePrev();
             else router.push('/home');
           }}
-          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] hover:bg-white/8 transition"
+          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
         >
           Back
         </button>
@@ -125,7 +148,7 @@ export default function PostListingPage() {
                     ? 'bg-[#A8D97F] text-[#1A3A05] scale-110 shadow-lg' 
                     : step > num 
                       ? 'bg-[#2A4A10] text-[#A8D97F]' 
-                      : 'bg-[#1B1B1B] text-[#5A5C50] border border-white/6'
+                      : 'bg-[#1B1B1B] text-[#525252] border border-white/6'
                 }`}
               >
                 {num}
@@ -149,13 +172,13 @@ export default function PostListingPage() {
         {step === 1 && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">Describe your organic material</h2>
-              <p className="text-xs text-[#A8AA98]">Choose a precise title so composters can identify quality.</p>
+              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">Describe your organic material</h2>
+              <p className="text-xs text-[#A3A3A3]">Choose a precise title so composters can identify quality.</p>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-[#A8AA98]">Title of Waste Post</label>
+                <label className="text-xs font-bold text-[#A3A3A3]">Title of Waste Post</label>
                 <input
                   type="text"
                   placeholder="e.g. Sourdough discards, veggie stems..."
@@ -166,9 +189,9 @@ export default function PostListingPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#A8AA98]">Select Material Category</label>
+                <label className="text-xs font-bold text-[#A3A3A3]">Select Material Category</label>
                 <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1 pb-1 scrollbar-none">
-                  {CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <button
                       key={cat.slug}
                       type="button"
@@ -180,7 +203,7 @@ export default function PostListingPage() {
                       className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
                         category === cat.slug
                           ? 'bg-[#2A4A10] border-[#A8D97F] text-[#A8D97F]'
-                          : 'bg-[#141414] border-white/6 text-[#E8EAD8] hover:border-white/12'
+                          : 'bg-[#141414] border-white/6 text-[#FFFFFF] hover:border-white/12'
                       }`}
                     >
                       <span className="text-lg">{cat.emoji}</span>
@@ -197,8 +220,8 @@ export default function PostListingPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">How much are you donating?</h2>
-              <p className="text-xs text-[#A8AA98]">Accurate metrics enable carbon reduction claims validation.</p>
+              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">How much are you donating?</h2>
+              <p className="text-xs text-[#A3A3A3]">Accurate metrics enable carbon reduction claims validation.</p>
             </div>
 
             <div className="space-y-4 bg-[#141414] p-6 rounded-2xl border border-white/6">
@@ -209,23 +232,23 @@ export default function PostListingPage() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2 space-y-1">
-                  <label className="text-[10px] font-bold text-[#A8AA98] uppercase">Quantity</label>
+                  <label className="text-[10px] font-bold text-[#A3A3A3] uppercase">Quantity</label>
                   <input
                     type="number"
                     step="0.1"
                     min="0.1"
                     value={quantity}
                     onChange={(e) => setQuantity(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
-                    className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-base text-[#E8EAD8] focus:border-[#A8D97F] focus:outline-none"
+                    className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-base text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-[#A8AA98] uppercase">Unit</label>
+                  <label className="text-[10px] font-bold text-[#A3A3A3] uppercase">Unit</label>
                   <select
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
-                    className="w-full h-12 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-bold text-sm text-[#E8EAD8] focus:border-[#A8D97F] focus:outline-none"
+                    className="w-full h-12 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-bold text-sm text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                   >
                     <option value="kg">kg</option>
                     <option value="pieces">pcs</option>
@@ -242,13 +265,13 @@ export default function PostListingPage() {
         {step === 3 && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">Add Details & Visual Verification</h2>
-              <p className="text-xs text-[#A8AA98]">Select preset stock images recommended for your category slug.</p>
+              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">Add Details & Visual Verification</h2>
+              <p className="text-xs text-[#A3A3A3]">Select preset stock images recommended for your category slug.</p>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-[#A8AA98]">Short Description</label>
+                <label className="text-xs font-bold text-[#A3A3A3]">Short Description</label>
                 <textarea
                   placeholder="e.g. Clean espresso grinds from espresso machine. Stored in dry buckets, perfect for composting or oyster mushroom substrate."
                   value={description}
@@ -293,8 +316,8 @@ export default function PostListingPage() {
         {step === 4 && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">Confirm details & publish</h2>
-              <p className="text-xs text-[#A8AA98]">Double-check metrics before adding to the circular feed.</p>
+              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">Confirm details & publish</h2>
+              <p className="text-xs text-[#A3A3A3]">Double-check metrics before adding to the circular feed.</p>
             </div>
 
             {/* Summary Block */}
@@ -303,15 +326,15 @@ export default function PostListingPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={selectedPhoto} alt="Review Post" className="h-full w-full object-cover" />
                 <div className="absolute left-3 top-3">
-                  <span className="rounded-full bg-[#141414] px-3 py-1 text-xs font-bold text-[#E8EAD8] border border-white/10">
-                    {catMap[category]?.emoji} {catMap[category]?.label}
+                  <span className="rounded-full bg-[#141414] px-3 py-1 text-xs font-bold text-[#FFFFFF] border border-white/10">
+                    {activeCategory.emoji} {activeCategory.label}
                   </span>
                 </div>
               </div>
 
               <div className="p-4 space-y-3">
-                <h3 className="font-display text-lg font-bold text-[#E8EAD8]">{title}</h3>
-                <p className="text-xs text-[#A8AA98] leading-relaxed line-clamp-2">{description}</p>
+                <h3 className="font-display text-lg font-bold text-[#FFFFFF]">{title}</h3>
+                <p className="text-xs text-[#A3A3A3] leading-relaxed line-clamp-2">{description}</p>
                 
                 <div className="flex items-center gap-1.5 text-xs text-[#A8D97F] bg-[#2A4A10]/40 px-3 py-1.5 rounded-lg border border-[#A8D97F]/10 font-bold self-start inline-flex">
                   <Scale size={14} />
@@ -321,7 +344,7 @@ export default function PostListingPage() {
             </div>
 
             {/* Verification Note */}
-            <div className="flex gap-2 text-[10px] text-[#A8AA98] leading-relaxed px-1">
+            <div className="flex gap-2 text-[10px] text-[#A3A3A3] leading-relaxed px-1">
               <Info size={14} className="text-[#A8D97F] shrink-0" />
               <span>By publishing, you agree to store this batch safely and coordinate pickup details promptly. You will unlock +25 XP upon completion.</span>
             </div>
@@ -333,7 +356,7 @@ export default function PostListingPage() {
           {step > 1 && (
             <button
               onClick={handlePrev}
-              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#E8EAD8] hover:bg-[#1B1B1B] transition flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#1B1B1B] transition flex-1"
             >
               <ChevronLeft size={16} />
               <span>Back</span>

@@ -34,18 +34,14 @@ export async function proxy(request: NextRequest) {
         },
       });
 
-      const {
-        data: { user: sbUser },
-      } = await supabase.auth.getUser();
-      user = sbUser;
+      const { data } = await supabase.auth.getClaims();
+      user = data?.claims ?? null;
     } catch (e) {
       console.error("Supabase auth error in proxy middleware:", e);
     }
   }
 
-  // Check mock session cookie
-  const isMockLoggedIn = request.cookies.get("fl_logged_in")?.value === "true";
-  const isAuthenticated = !!user || isMockLoggedIn;
+  const isAuthenticated = !!user;
 
   const pathname = request.nextUrl.pathname;
 

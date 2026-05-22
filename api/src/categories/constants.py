@@ -1,45 +1,28 @@
 
+from decimal import Decimal
+
 from src.categories.schemas import Category
 
-DEFAULT_CO2_FACTOR_PER_KG = 0.5
+DEFAULT_CO2_FACTOR_PER_KG = Decimal("0.5")
+DEFAULT_WATER_SAVED_LITERS_PER_KG = Decimal("50")
 
 
 def build_seed_categories() -> list[Category]:
-    seeds: list[tuple[str, str, str | None]] = [
-        ("organic", "Organic", None),
-        ("vegetable-scraps", "Vegetable Scraps", "organic"),
-        ("fruit-waste", "Fruit Waste", "organic"),
-        ("coffee-grounds", "Coffee Grounds", "organic"),
-        ("tea-leaves", "Tea Leaves", "organic"),
-        ("eggshells", "Eggshells", "organic"),
-        ("bread-stale", "Stale Bread", "organic"),
-        ("rice-cooked", "Cooked Rice", "organic"),
-        ("fish-bones-shells", "Fish Bones and Shells", "organic"),
-        ("meat-trimmings", "Meat Trimmings", "organic"),
-        ("brewery-fermentation", "Brewery and Fermentation", None),
-        ("spent-grain", "Spent Grain", "brewery-fermentation"),
-        ("fruit-pomace", "Fruit Pomace", "brewery-fermentation"),
-        ("whey", "Whey", "brewery-fermentation"),
-        ("sourdough-discard", "Sourdough Discard", "brewery-fermentation"),
-        ("yeast-slurry", "Yeast Slurry", "brewery-fermentation"),
-        ("agricultural", "Agricultural", None),
-        ("blemished-produce", "Blemished Produce", "agricultural"),
-        ("crop-trimmings", "Crop Trimmings", "agricultural"),
-        ("husks-bran", "Husks and Bran", "agricultural"),
-        ("processing-by-products", "Processing By-Products", None),
-        ("cooking-oil-used", "Used Cooking Oil", "processing-by-products"),
-        ("food-processing-waste", "Food Processing Waste", "processing-by-products"),
-        ("surplus-packaged-food", "Surplus Packaged Food", "processing-by-products"),
-        ("other", "Other", None),
-        ("compostable-packaging", "Compostable Packaging", "other"),
-        ("garden-waste", "Garden Waste", "other"),
+    seeds: list[tuple[str, str, str | None, Decimal, Decimal]] = [
+        ("food-scraps", "Food Scraps", None, Decimal("0.5"), Decimal("50")),
+        ("spent-grain", "Spent Grain", None, Decimal("1.2"), Decimal("120")),
+        ("coffee-grounds", "Coffee Grounds", None, Decimal("0.8"), Decimal("80")),
+        ("vegetable-scraps", "Vegetable Scraps", None, Decimal("0.4"), Decimal("40")),
+        ("fruit-waste", "Fruit Waste", None, Decimal("0.6"), Decimal("65")),
+        ("surplus-meals", "Surplus Meals", None, Decimal("2.5"), Decimal("250")),
     ]
     return [
         Category(
             slug=slug,
             label=label,
             parent_slug=parent_slug,
-            co2_factor_per_kg=DEFAULT_CO2_FACTOR_PER_KG,
+            co2_factor_per_kg=co2_factor_per_kg,
+            water_saved_liters_per_kg=water_saved_liters_per_kg,
         )
-        for slug, label, parent_slug in seeds
+        for slug, label, parent_slug, co2_factor_per_kg, water_saved_liters_per_kg in seeds
     ]

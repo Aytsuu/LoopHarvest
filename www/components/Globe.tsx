@@ -3,8 +3,10 @@
 import * as React from 'react';
 import Map, { Marker, MapRef } from 'react-map-gl/mapbox';
 import { Leaf, HelpCircle, X, Clock } from 'lucide-react';
-import { mockStore } from '@/lib/mockStore';
+import { apiClient } from '@/lib/api/client';
 import mapboxgl from 'mapbox-gl';
+
+import type { Listing, RequestItem } from '@/lib/api/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 export interface GlobePin {
@@ -51,13 +53,21 @@ interface GlobeProps {
   focusedItemId?: string | null;
   onPinSelect?: (pin: GlobePin | null) => void;
   projection?: 'globe' | 'mercator';
+  listings?: Listing[];
+  requests?: RequestItem[];
+  onClaim?: (id: string) => Promise<void> | void;
+  onFulfill?: (id: string) => Promise<void> | void;
 }
 
 export default function Globe({
   accessToken,
   focusedItemId,
   onPinSelect,
-  projection: controlledProjection
+  projection: controlledProjection,
+  listings: providedListings,
+  requests: providedRequests,
+  onClaim,
+  onFulfill,
 }: GlobeProps) {
   const mapRef = React.useRef<MapRef>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -94,8 +104,8 @@ export default function Globe({
     if (refreshTrigger) {
       // no-op
     }
-    const listings = mockStore.getListings();
-    const requests = mockStore.getRequests();
+    const listings = providedListings ?? [];
+    const requests = providedRequests ?? [];
     const pinsList: GlobePin[] = [];
 
     // Map active listings
@@ -139,7 +149,7 @@ export default function Globe({
     });
 
     return pinsList;
-  }, [refreshTrigger]);
+  }, [providedListings, providedRequests, refreshTrigger]);
 
   React.useEffect(() => {
     if (!focusedItemId) return;
@@ -162,29 +172,37 @@ export default function Globe({
     }
   }, [focusedItemId, pins, projection]);
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!selectedPin) return;
 
-    if (selectedPin.type === 'listing') {
-      const success = mockStore.claimListing(selectedPin.id);
-      if (success) {
-        const event = new CustomEvent('post-created', {
-          detail: `Successfully claimed ${selectedPin.quantityText} of "${selectedPin.title}"!`
-        });
-        window.dispatchEvent(event);
+    try {
+      if (selectedPin.type === 'listing') {
+        if (onClaim) {
+          await onClaim(selectedPin.id);
+        } else {
+          await apiClient.claimListing(selectedPin.id);
+          const event = new CustomEvent('post-created', {
+            detail: `Successfully claimed ${selectedPin.quantityText} of "${selectedPin.title}"!`
+          });
+          window.dispatchEvent(event);
+        }
+        setRefreshTrigger(prev => prev + 1);
+        setSelectedPin(prev => prev ? { ...prev, status: 'claimed' } : null);
+      } else {
+        if (onFulfill) {
+          await onFulfill(selectedPin.id);
+        } else {
+          await apiClient.fulfillRequest(selectedPin.id);
+          const event = new CustomEvent('post-created', {
+            detail: `Offered to fulfill request for "${selectedPin.title}"!`
+          });
+          window.dispatchEvent(event);
+        }
         setRefreshTrigger(prev => prev + 1);
         setSelectedPin(prev => prev ? { ...prev, status: 'claimed' } : null);
       }
-    } else {
-      const success = mockStore.fulfillRequest(selectedPin.id);
-      if (success) {
-        const event = new CustomEvent('post-created', {
-          detail: `Offered to fulfill request for "${selectedPin.title}"!`
-        });
-        window.dispatchEvent(event);
-        setRefreshTrigger(prev => prev + 1);
-        setSelectedPin(prev => prev ? { ...prev, status: 'claimed' } : null);
-      }
+    } catch (err) {
+      console.error('Error executing map pin action:', err);
     }
   };
 
@@ -207,10 +225,10 @@ export default function Globe({
 
   if (webGlSupported === false) {
     return (
-      <div className="flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-[#0E0E0E] p-6 text-center text-[#A8AA98] shadow-inner">
+      <div className="flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-[#0E0E0E] p-6 text-center text-[#A3A3A3] shadow-inner">
         <div>
-          <p className="font-extrabold text-base text-[#E8EAD8]">Interactive Map Unavailable</p>
-          <p className="text-xs mt-1 max-w-xs leading-relaxed text-[#5A5C50]">
+          <p className="font-extrabold text-base text-[#FFFFFF]">Interactive Map Unavailable</p>
+          <p className="text-xs mt-1 max-w-xs leading-relaxed text-[#525252]">
             WebGL is not supported or is disabled in your browser. You can still use all platform features via the side listings.
           </p>
         </div>
@@ -220,10 +238,10 @@ export default function Globe({
 
   if (!token) {
     return (
-      <div className="flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-[#0E0E0E] p-6 text-center text-[#A8AA98] shadow-inner">
+      <div className="flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-[#0E0E0E] p-6 text-center text-[#A3A3A3] shadow-inner">
         <div>
-          <p className="font-extrabold text-base text-[#E8EAD8]">Mapbox Access Token Missing</p>
-          <p className="text-xs mt-1 max-w-xs leading-relaxed text-[#5A5C50]">
+          <p className="font-extrabold text-base text-[#FFFFFF]">Mapbox Access Token Missing</p>
+          <p className="text-xs mt-1 max-w-xs leading-relaxed text-[#525252]">
             Please set NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN inside your .env.local file to initialize the 3D globe network mapping.
           </p>
         </div>
@@ -296,7 +314,7 @@ export default function Globe({
                 <div className={`absolute -right-1.5 -top-1.5 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-[#0E0E0E] shadow-md transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:scale-110 ${
                   pin.status === 'open'
                     ? pin.type === 'listing' ? 'bg-[#A8D97F]' : 'bg-[#E8A838]'
-                    : 'bg-[#5A5C50]'
+                    : 'bg-[#525252]'
                 }`}>
                   {pin.type === 'listing' ? (
                     <Leaf size={10} className={pin.status === 'open' ? 'text-[#1A3A05]' : 'text-white/60'} fill="currentColor" />
@@ -305,7 +323,7 @@ export default function Globe({
                   )}
                 </div>
               </div>
-              <div className="mt-1 rounded-md bg-[#0E0E0E]/90 border border-white/10 px-2 py-0.5 text-[9px] font-black uppercase text-[#E8EAD8] opacity-0 shadow-2xl transition-opacity duration-200 group-hover:opacity-100 backdrop-blur-md">
+              <div className="mt-1 rounded-md bg-[#0E0E0E]/90 border border-white/10 px-2 py-0.5 text-[9px] font-black uppercase text-[#FFFFFF] opacity-0 shadow-2xl transition-opacity duration-200 group-hover:opacity-100 backdrop-blur-md">
                 {pin.title}
               </div>
               <div className="h-2 w-0.5 bg-white/20" />
@@ -329,7 +347,7 @@ export default function Globe({
             {/* Close Trigger */}
             <button 
               onClick={() => { setSelectedPin(null); onPinSelect?.(null); }}
-              className="absolute top-4 right-4 rounded-full p-1.5 text-[#A8AA98] hover:bg-white/8 hover:text-[#E8EAD8] transition"
+              className="absolute top-4 right-4 rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 hover:text-[#FFFFFF] transition"
             >
               <X size={20} />
             </button>
@@ -353,7 +371,7 @@ export default function Globe({
                 <div className={`absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#0E0E0E] shadow-sm ${
                   selectedPin.status === 'open'
                     ? selectedPin.type === 'listing' ? 'bg-[#A8D97F]' : 'bg-[#E8A838]'
-                    : 'bg-[#5A5C50]'
+                    : 'bg-[#525252]'
                 }`}>
                   {selectedPin.type === 'listing' ? (
                     <Leaf size={14} className={selectedPin.status === 'open' ? 'text-[#1A3A05]' : 'text-white/70'} fill="currentColor" />
@@ -363,18 +381,18 @@ export default function Globe({
                 </div>
               </div>
 
-              <h3 className="text-xl font-extrabold text-[#E8EAD8] leading-tight">{selectedPin.name}</h3>
-              <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-[#A8AA98]">
+              <h3 className="text-xl font-extrabold text-[#FFFFFF] leading-tight">{selectedPin.name}</h3>
+              <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-[#A3A3A3]">
                 {selectedPin.type === 'listing' ? 'Waste Donation Loop' : 'Needs Fulfiller / Appeal'}
               </p>
 
               <div className="mt-5 w-full space-y-3.5 text-left">
                 {/* Details card wrapper */}
                 <div className="rounded-2xl bg-[#141414]/60 border border-white/5 p-4 space-y-1.5 shadow-inner">
-                  <div className="text-sm font-extrabold text-[#E8EAD8]">
+                  <div className="text-sm font-extrabold text-[#FFFFFF]">
                     {selectedPin.title}
                   </div>
-                  <p className="text-xs text-[#A8AA98] leading-relaxed">
+                  <p className="text-xs text-[#A3A3A3] leading-relaxed">
                     {selectedPin.description}
                   </p>
                 </div>
@@ -382,20 +400,20 @@ export default function Globe({
                 {/* Quantities/Cities metrics */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-xl bg-[#222222]/30 border border-white/5 p-2.5 flex flex-col">
-                    <span className="text-[9px] font-black text-[#A8AA98] uppercase tracking-wider">Quantity</span>
+                    <span className="text-[9px] font-black text-[#A3A3A3] uppercase tracking-wider">Quantity</span>
                     <span className="font-extrabold text-[#A8D97F] mt-0.5">{selectedPin.quantityText}</span>
                   </div>
                   <div className="rounded-xl bg-[#222222]/30 border border-white/5 p-2.5 flex flex-col">
-                    <span className="text-[9px] font-black text-[#A8AA98] uppercase tracking-wider">Location</span>
-                    <span className="font-extrabold text-[#E8EAD8] mt-0.5">{selectedPin.city}</span>
+                    <span className="text-[9px] font-black text-[#A3A3A3] uppercase tracking-wider">Location</span>
+                    <span className="font-extrabold text-[#FFFFFF] mt-0.5">{selectedPin.city}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 px-1 text-[11px] text-[#A8AA98]">
+                <div className="flex items-center gap-2 px-1 text-[11px] text-[#A3A3A3]">
                   <Clock size={13} />
                   <span>Posted {selectedPin.timeAgo} • Status: </span>
                   <span className={`font-black uppercase text-[10px] ${
-                    selectedPin.status === 'open' ? 'text-[#A8D97F]' : 'text-[#5A5C50]'
+                    selectedPin.status === 'open' ? 'text-[#A8D97F]' : 'text-[#525252]'
                   }`}>{selectedPin.status}</span>
                 </div>
               </div>
@@ -414,7 +432,7 @@ export default function Globe({
               ) : (
                 <button 
                   disabled
-                  className="mt-6 w-full rounded-xl py-3.5 text-xs font-black uppercase tracking-wider bg-[#141414] text-[#5A5C50] border border-white/5 cursor-not-allowed"
+                  className="mt-6 w-full rounded-xl py-3.5 text-xs font-black uppercase tracking-wider bg-[#141414] text-[#525252] border border-white/5 cursor-not-allowed"
                 >
                   Loop Solved / Claimed
                 </button>

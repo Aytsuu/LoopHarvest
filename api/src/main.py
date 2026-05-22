@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.api import build_api_router
@@ -20,6 +21,13 @@ app = FastAPI(
     docs_url=settings.docs_url,
     openapi_url=settings.openapi_url,
     lifespan=lifespan,
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 app.include_router(health_router)
 app.include_router(build_api_router(), prefix=settings.api_prefix)

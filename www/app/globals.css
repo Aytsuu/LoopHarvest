@@ -86,9 +86,9 @@
   --color-on-error-container: #FFB4AB;
 
   /* ── TEXT ── */
-  --color-text-primary:  #E8EAD8;   /* High emphasis — near-white, warm */
-  --color-text-secondary:#A8AA98;   /* Medium emphasis */
-  --color-text-disabled: #5A5C50;   /* Disabled / placeholder */
+  --color-text-primary:  #FFFFFF;   /* High emphasis — near-white, warm */
+  --color-text-secondary:#A3A3A3;   /* Medium emphasis */
+  --color-text-disabled: #525252;   /* Disabled / placeholder */
   --color-text-inverse:  #1A1C10;   /* Text on light surfaces */
 
   /* ── OUTLINE / BORDER ── */
@@ -110,7 +110,7 @@
   --status-open:      #A8D97F;   /* Open request or listing */
   --status-claimed:   #E8A838;   /* Claimed, awaiting pickup */
   --status-completed: #4ECDC4;   /* Successfully completed */
-  --status-expired:   #5A5C50;   /* Expired */
+  --status-expired:   #525252;   /* Expired */
 
   /* ── INTERACTIVE STATES ── */
   --state-hover:   rgba(168, 217, 127, 0.08);

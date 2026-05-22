@@ -10,3 +10,6 @@ class AuthenticatedUser(ApiModel):
     email: EmailStr
     role: str = Field(default="authenticated")
     display_name: str | None = None
+    avatar_url: str | None = None
+    city: str | None = None
+    country: str | None = None

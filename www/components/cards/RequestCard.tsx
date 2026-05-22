@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
-import { RequestItem } from '@/lib/mockStore';
+import { RequestItem } from '@/lib/api/types';
 import CategoryChip from '../common/CategoryChip';
 
 interface RequestCardProps {
@@ -17,7 +17,7 @@ export default function RequestCard({ request, onFulfill }: RequestCardProps) {
   return (
     <article
       onClick={() => router.push(`/requests/${request.id}`)}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-white/6 bg-[#141414] p-4 text-[#E8EAD8] transition-all duration-250 hover:-translate-y-0.5 hover:bg-[#1B1B1B] hover:shadow-[0_4px_16px_rgba(0,0,0,0.5)] cursor-pointer"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-white/6 bg-[#141414] p-4 text-[#FFFFFF] transition-all duration-250 hover:-translate-y-0.5 hover:bg-[#1B1B1B] hover:shadow-[0_4px_16px_rgba(0,0,0,0.5)] cursor-pointer"
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
@@ -27,11 +27,11 @@ export default function RequestCard({ request, onFulfill }: RequestCardProps) {
           </span>
         </div>
 
-        <h3 className="font-display text-lg font-bold leading-snug text-[#E8EAD8] line-clamp-1 group-hover:text-[#A8D97F] mt-1">
+        <h3 className="font-display text-lg font-bold leading-snug text-[#FFFFFF] line-clamp-1 group-hover:text-[#A8D97F] mt-1">
           {request.title}
         </h3>
 
-        <p className="text-xs text-[#A8AA98] line-clamp-2 leading-relaxed">
+        <p className="text-xs text-[#A3A3A3] line-clamp-2 leading-relaxed">
           {request.description}
         </p>
       </div>
@@ -46,8 +46,8 @@ export default function RequestCard({ request, onFulfill }: RequestCardProps) {
             className="h-6 w-6 rounded-full border border-white/10"
           />
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-[#E8EAD8]">{request.requesterName}</span>
-            <span className="text-[9px] text-[#A8AA98]">{request.city} · {request.distance} km</span>
+            <span className="text-[10px] font-bold text-[#FFFFFF]">{request.requesterName}</span>
+            <span className="text-[9px] text-[#A3A3A3]">{request.city} · {request.distance} km</span>
           </div>
         </div>
 

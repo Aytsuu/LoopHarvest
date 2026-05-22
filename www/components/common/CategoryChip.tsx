@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { catMap, CategorySlug } from '@/lib/categories';
+import { useCategories } from '@/components/common/CategoriesProvider';
+import type { CategorySlug } from '@/lib/categories';
 
 interface CategoryChipProps {
   categorySlug: CategorySlug;
@@ -16,8 +17,8 @@ export default function CategoryChip({
   onClick,
   interactive = true
 }: CategoryChipProps) {
-  const cat = catMap[categorySlug];
-  if (!cat) return null;
+  const { getCategory } = useCategories();
+  const cat = getCategory(categorySlug);
 
   const hex = cat.color;
 
@@ -40,7 +41,7 @@ export default function CategoryChip({
   const unselectedStyle = {
     borderColor: 'rgba(255, 255, 255, 0.08)',
     backgroundColor: '#141414',
-    color: '#A8AA98'
+    color: '#A3A3A3'
   };
 
   const currentStyle = selected 
@@ -55,7 +56,7 @@ export default function CategoryChip({
       style={currentStyle}
       className={`inline-flex items-center gap-2 h-8 px-2.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all duration-200 select-none border ${
         interactive 
-          ? 'cursor-pointer hover:text-[#E8EAD8] hover:border-white/20 hover:bg-white/5 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#A8D97F]' 
+          ? 'cursor-pointer hover:text-[#FFFFFF] hover:border-white/20 hover:bg-white/5 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#A8D97F]' 
           : ''
       }`}
     >
@@ -67,4 +68,3 @@ export default function CategoryChip({
     </Tag>
   );
 }
-

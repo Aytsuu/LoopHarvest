@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { MapPin, Clock, Lock, Check, AlertCircle } from 'lucide-react';
-import { Listing } from '@/lib/mockStore';
+import { Listing } from '@/lib/api/types';
 import CategoryChip from '../common/CategoryChip';
 
 interface ListingCardProps {
@@ -17,7 +17,7 @@ export default function ListingCard({ listing, onClaim }: ListingCardProps) {
   return (
     <article
       onClick={() => router.push(`/listings/${listing.id}`)}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-white/6 bg-[#141414] text-[#E8EAD8] transition-all duration-250 hover:-translate-y-0.5 hover:bg-[#1B1B1B] hover:shadow-[0_4px_16px_rgba(0,0,0,0.5)] cursor-pointer"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-white/6 bg-[#141414] text-[#FFFFFF] transition-all duration-250 hover:-translate-y-0.5 hover:bg-[#1B1B1B] hover:shadow-[0_4px_16px_rgba(0,0,0,0.5)] cursor-pointer"
     >
       {/* Photo header (16:9, bleeds) */}
       <div className="relative aspect-video w-full overflow-hidden bg-stone-900">
@@ -36,16 +36,16 @@ export default function ListingCard({ listing, onClaim }: ListingCardProps) {
 
       {/* Card Details */}
       <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-center gap-2 text-xs text-[#A8AA98]">
+        <div className="flex items-center gap-2 text-xs text-[#A3A3A3]">
           <Clock size={12} />
           <span>{listing.timeAgo}</span>
         </div>
 
-        <h3 className="mt-1 font-display text-lg font-bold leading-snug text-[#E8EAD8] line-clamp-1 group-hover:text-[#A8D97F]">
+        <h3 className="mt-1 font-display text-lg font-bold leading-snug text-[#FFFFFF] line-clamp-1 group-hover:text-[#A8D97F]">
           {listing.title}
         </h3>
 
-        <div className="mt-2 flex items-center justify-between text-xs text-[#A8AA98]">
+        <div className="mt-2 flex items-center justify-between text-xs text-[#A3A3A3]">
           <div className="flex items-center gap-1">
             <MapPin size={12} className="text-[#A8D97F]" />
             <span>{listing.city} · {listing.distance} km</span>

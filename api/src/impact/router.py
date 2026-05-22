@@ -9,4 +9,4 @@ router = APIRouter(prefix="/impact", tags=["impact"])
 
 @router.get("/summary", response_model=ApiEnvelope[ImpactSummary], summary="Get impact summary")
 async def get_impact_summary() -> ApiEnvelope[ImpactSummary]:
-    return ApiEnvelope(data=impact_service.get_summary())
+    return ApiEnvelope(data=await impact_service.get_summary())

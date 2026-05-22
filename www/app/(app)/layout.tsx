@@ -81,7 +81,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-[#0A0A0A] text-[#E8EAD8]">
+    <div className="relative min-h-screen bg-[#0A0A0A] text-[#FFFFFF]">
       {/* Navigation Rails & Drawers */}
       <NavigationRail
         onPostClick={triggerPostSheet}
@@ -104,8 +104,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <img src="/logo.png" alt="LoopHarvest" className="h-10 w-10 object-contain rounded-full" />
               </div>
               <div className="flex flex-col items-center gap-1">
-                <h3 className="font-display text-sm font-black tracking-wider text-[#E8EAD8] uppercase">LoopHarvest</h3>
-                <p className="text-[10px] font-bold text-[#A8AA98] tracking-widest uppercase animate-pulse">Syncing Organic Cycles...</p>
+                <h3 className="font-display text-sm font-black tracking-wider text-[#FFFFFF] uppercase">LoopHarvest</h3>
+                <p className="text-[10px] font-bold text-[#A3A3A3] tracking-widest uppercase animate-pulse">Syncing Organic Cycles...</p>
               </div>
             </div>
           </div>
@@ -122,19 +122,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           onClick={() => setIsPostSheetOpen(false)}
         >
           <div
-            className="relative w-full max-w-md rounded-t-[2rem] bg-[#1B1B1B] p-6 pb-12 text-[#E8EAD8] shadow-[0_-8px_32px_rgba(0,0,0,0.5)] border-t border-white/10 md:rounded-[2rem] md:pb-6 md:border animate-scale-in"
+            className="relative w-full max-w-md rounded-t-[2rem] bg-[#1B1B1B] p-6 pb-12 text-[#FFFFFF] shadow-[0_-8px_32px_rgba(0,0,0,0.5)] border-t border-white/10 md:rounded-[2rem] md:pb-6 md:border animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drag Handle */}
             <div className="mx-auto mb-6 h-1 w-8 rounded-full bg-white/20 md:hidden" />
 
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-xl font-bold tracking-tight text-[#E8EAD8]">
+              <h3 className="font-display text-xl font-bold tracking-tight text-[#FFFFFF]">
                 What do you want to post?
               </h3>
               <button
                 onClick={() => setIsPostSheetOpen(false)}
-                className="rounded-full p-1.5 text-[#A8AA98] hover:bg-white/8 transition"
+                className="rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 transition"
               >
                 <X size={20} />
               </button>
@@ -178,7 +178,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           onClick={() => setIsSignOutConfirmOpen(false)}
         >
           <div
-            className="relative w-full max-w-sm rounded-[2rem] bg-[#1B1B1B] p-6 text-[#E8EAD8] shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-white/10 animate-scale-in"
+            className="relative w-full max-w-sm rounded-[2rem] bg-[#1B1B1B] p-6 text-[#FFFFFF] shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-white/10 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Warning Icon Badge */}
@@ -187,10 +187,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="text-center space-y-2 mb-6">
-              <h3 className="font-display text-lg font-bold tracking-tight text-[#E8EAD8]">
+              <h3 className="font-display text-lg font-bold tracking-tight text-[#FFFFFF]">
                 Sign Out?
               </h3>
-              <p className="text-xs text-[#A8AA98] leading-relaxed px-1 font-medium">
+              <p className="text-xs text-[#A3A3A3] leading-relaxed px-1 font-medium">
                 Are you sure you want to sign out? You will need to log back in to manage your posts and active claims.
               </p>
             </div>
@@ -199,7 +199,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => setIsSignOutConfirmOpen(false)}
-                className="flex-1 h-11 rounded-xl border border-white/8 bg-white/4 text-xs font-bold text-[#E8EAD8] hover:bg-white/8 hover:text-white transition duration-200 active:scale-[0.98] cursor-pointer"
+                className="flex-1 h-11 rounded-xl border border-white/8 bg-white/4 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 hover:text-white transition duration-200 active:scale-[0.98] cursor-pointer"
               >
                 Cancel
               </button>
@@ -221,7 +221,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Snackbar / Toast Notifications */}
       {toast.show && (
         <div className="fixed bottom-24 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4 transition-all duration-300 md:bottom-6">
-          <div className="flex items-center gap-3 rounded-xl bg-[#323232] px-4 py-3 text-[#E8EAD8] shadow-[0_4px_16px_rgba(0,0,0,0.7)] border border-white/10 animate-fade-in">
+          <div className="flex items-center gap-3 rounded-xl bg-[#323232] px-4 py-3 text-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.7)] border border-white/10 animate-fade-in">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#A8D97F]/10 text-[#A8D97F]">
               <Check size={14} strokeWidth={2.5} />
             </div>

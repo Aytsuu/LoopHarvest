@@ -1,96 +1,133 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import { Mail, Lock, ShieldCheck } from 'lucide-react';
-import Globe from "@/components/Globe";
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Lock, Mail, ShieldCheck } from 'lucide-react';
 
-export default function LoginPage() {
+import StarsBackground from "@/components/StarsBackground";
+import { createClient } from "@/lib/supabase/client";
+
+function LoginPageContent() {
   const router = useRouter();
-  const [email, setEmail] = React.useState('');
+  const searchParams = useSearchParams();
+  const [email, setEmail] = React.useState(() => searchParams.get('email') || '');
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
+  const notice = React.useMemo(() => {
+    const signupState = searchParams.get('signup');
+    const signupEmail = searchParams.get('email');
+    if (signupState === 'check-email') {
+      return signupEmail
+        ? `Account created for ${signupEmail}. Confirm the email first, then sign in.`
+        : 'Account created. Confirm the email first, then sign in.';
+    }
+    if (signupState === 'ready') {
+      return 'Account created. You can sign in now.';
+    }
+    return '';
+  }, [searchParams]);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isLargeScreen, setIsLargeScreen] = React.useState(false);
 
   React.useEffect(() => {
-    const handleResize = () => {
-      setIsLargeScreen(window.innerWidth >= 1024);
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    const authCode = searchParams.get('code');
+    const next = searchParams.get('next') || '/home';
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    if (authCode) {
+      router.replace(`/auth/callback?code=${encodeURIComponent(authCode)}&next=${encodeURIComponent(next)}`);
+    }
+  }, [searchParams, router]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     if (!email || !password) {
       setError('Please fill in all fields');
       return;
     }
+
     setError('');
     setIsLoading(true);
 
-    // Simulate login loading delay
-    setTimeout(() => {
+    try {
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      router.replace('/home');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in right now.');
+    } finally {
       setIsLoading(false);
-      document.cookie = "fl_logged_in=true; path=/; max-age=86400";
-      router.push('/home');
-    }, 1200);
+    }
   };
 
-  const handleOAuthLogin = (provider: string) => {
+  const handleOAuthLogin = async (provider: "google" | "apple") => {
     setIsLoading(true);
-    console.log(`Mock OAuth login initiated for provider: ${provider}`);
-    setTimeout(() => {
+
+    try {
+      const supabase = createClient();
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/home`,
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to start single sign-on.');
       setIsLoading(false);
-      document.cookie = "fl_logged_in=true; path=/; max-age=86400";
-      router.push('/home');
-    }, 800);
+    }
   };
 
   return (
-    <main className="relative flex h-screen w-screen items-center justify-center bg-[#0A0A0A] px-4 overflow-hidden">
-      
-      {/* Background Interactive Globe - low opacity */}
-      <div className="absolute inset-0 z-0 opacity-20 pointer-events-none select-none scale-105">
-        {isLargeScreen && <Globe />}
+    <main className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-[#0A0A0A] px-4">
+      <div className="absolute inset-0 z-0 select-none opacity-50 pointer-events-none">
+        <StarsBackground />
       </div>
 
-      {/* Dark Ambient Vignette overlay */}
       <div className="absolute inset-0 z-1 bg-gradient-to-tr from-[#0A0A0A] via-transparent to-[#0A0A0A]/90 pointer-events-none" />
 
-      {/* Login Card */}
       <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-white/8 bg-[#141414]/80 p-8 shadow-[0_16px_48px_rgba(0,0,0,0.8)] backdrop-blur-md">
-        
-        {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-8">
+        <div className="mb-8 flex flex-col items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="LoopHarvest" className="h-12 w-12 object-contain rounded-2xl shadow-lg mb-3" />
-          <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#E8EAD8]">
+          <img src="/logo.png" alt="LoopHarvest" className="mb-3 h-12 w-12 rounded-2xl object-contain shadow-lg" />
+          <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#FFFFFF]">
             Sign in to LoopHarvest
           </h2>
-          <p className="text-xs text-[#A8AA98] mt-1.5 max-w-xs">
+          <p className="mt-1.5 max-w-xs text-xs text-[#A3A3A3]">
             Connect to the hyperlocal circular network and claim carbon diversion rewards.
           </p>
         </div>
 
-        {/* Error Callout */}
         {error && (
-          <div className="mb-4 rounded-xl bg-[#7A1010]/30 border border-[#E05656]/30 p-3.5 text-xs font-semibold text-[#FFB4AB] flex items-center gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
+          <div className="mb-4 rounded-xl border border-[#E05656]/30 bg-[#7A1010]/30 p-3.5 text-xs font-semibold text-[#FFB4AB]">
+            {error}
           </div>
         )}
 
-        {/* Login Form */}
+        {notice && (
+          <div className="mb-4 rounded-xl border border-[#A8D97F]/20 bg-[#11331D]/40 p-3.5 text-xs font-semibold text-[#C4F09A]">
+            {notice}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[#A8AA98]" htmlFor="email">
+            <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="email">
               Email Address
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-[#5A5C50]">
+              <span className="absolute inset-y-0 left-3 flex items-center text-[#525252]">
                 <Mail size={16} />
               </span>
               <input
@@ -98,38 +135,29 @@ export default function LoginPage() {
                 type="email"
                 placeholder="chef@bistro.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 disabled={isLoading}
-                className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/10 bg-[#0A0A0A]/60 text-sm text-[#E8EAD8] placeholder-[#5A5C50] focus:border-[#A8D97F] focus:outline-none transition-all disabled:opacity-50"
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-[#A8AA98]" htmlFor="password">
-                Password
-              </label>
-              <button 
-                type="button" 
-                onClick={() => alert('Passwords are simulated in mock mode! Enter any password to continue.')}
-                className="text-[11px] font-bold text-[#A8D97F] hover:underline"
-              >
-                Forgot?
-              </button>
-            </div>
+            <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="password">
+              Password
+            </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-[#5A5C50]">
+              <span className="absolute inset-y-0 left-3 flex items-center text-[#525252]">
                 <Lock size={16} />
               </span>
               <input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 disabled={isLoading}
-                className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/10 bg-[#0A0A0A]/60 text-sm text-[#E8EAD8] placeholder-[#5A5C50] focus:border-[#A8D97F] focus:outline-none transition-all disabled:opacity-50"
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
               />
             </div>
           </div>
@@ -137,7 +165,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full h-12 rounded-xl bg-[#A8D97F] text-sm font-black text-[#1A3A05] transition-transform hover:brightness-105 active:scale-[0.98] flex items-center justify-center gap-2 mt-6 disabled:opacity-50"
+            className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#A8D97F] text-sm font-black text-[#1A3A05] transition-transform hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
           >
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A3A05] border-t-transparent" />
@@ -150,37 +178,30 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Divider */}
-        <div className="my-6 flex items-center justify-between text-xs text-[#5A5C50] font-black uppercase tracking-wider">
-          <div className="h-px bg-white/6 flex-1" />
+        <div className="my-6 flex items-center justify-between text-xs font-black uppercase tracking-wider text-[#525252]">
+          <div className="h-px flex-1 bg-white/6" />
           <span className="px-3 select-none">Or continue with</span>
-          <div className="h-px bg-white/6 flex-1" />
+          <div className="h-px flex-1 bg-white/6" />
         </div>
 
-        {/* OAuth SSO Options */}
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => handleOAuthLogin('google')}
             disabled={isLoading}
-            className="flex items-center justify-center gap-2 h-11 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#E8EAD8] hover:bg-[#1B1B1B] hover:border-white/20 transition-all disabled:opacity-50"
+            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#FFFFFF] transition-all hover:bg-[#1B1B1B] hover:border-white/20 disabled:opacity-50"
           >
-            <svg className="h-4 w-4 text-[#A8D97F]" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114-3.51 0-6.377-2.87-6.377-6.38s2.867-6.38 6.377-6.38c1.6 0 3.05.59 4.22 1.56l3.03-3.03C18.42 2.16 15.44.925 11.99.925 5.81.925.8 5.935.8 12.115s5.01 11.19 11.19 11.19c6.45 0 10.74-4.53 10.74-11.01 0-.66-.06-1.33-.19-2.01H12.24z"/>
-            </svg>
             <span>Google</span>
           </button>
           <button
             onClick={() => handleOAuthLogin('apple')}
             disabled={isLoading}
-            className="flex items-center justify-center gap-2 h-11 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#E8EAD8] hover:bg-[#1B1B1B] hover:border-white/20 transition-all disabled:opacity-50"
+            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#FFFFFF] transition-all hover:bg-[#1B1B1B] hover:border-white/20 disabled:opacity-50"
           >
-            <span>🍏</span>
             <span>Apple ID</span>
           </button>
         </div>
 
-        {/* Sign up prompt */}
-        <div className="text-center mt-8 text-xs text-[#A8AA98]">
+        <div className="mt-8 text-center text-xs text-[#A3A3A3]">
           Don&apos;t have an account?{' '}
           <button
             onClick={() => router.push('/signup')}
@@ -189,8 +210,15 @@ export default function LoginPage() {
             Create an account
           </button>
         </div>
-
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <LoginPageContent />
+    </React.Suspense>
   );
 }

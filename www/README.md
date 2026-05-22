@@ -4,6 +4,18 @@ This is the LoopHarvest frontend built with [Next.js](https://nextjs.org).
 
 Create `www/.env.local` for local frontend runtime. Required keys are documented in `.env.example`.
 
+The frontend now expects:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` for map views
+
+Important:
+
+- `NEXT_PUBLIC_SUPABASE_URL` must be the project base URL, for example `https://your-ref.supabase.co`
+- Do not use `.../rest/v1` here
+
 First, run the development server:
 
 ```bash

@@ -2,75 +2,376 @@
 
 import * as React from 'react';
 import { 
-  Award, 
-  Sparkles, 
-  Scale, 
-  Heart, 
-  ShieldCheck, 
-  Flame, 
-  BookOpen, 
   User, 
+  ShieldCheck, 
   Bell, 
   Palette, 
   Leaf, 
   CreditCard, 
+  LogOut, 
   ArrowLeft, 
-  Check, 
-  ChevronRight, 
-  Save, 
-  CheckCircle,
-  Clock,
-  LogOut
+  ChevronRight 
 } from 'lucide-react';
-import { mockStore, Listing, RequestItem } from '@/lib/mockStore';
-import ListingCard from '@/components/cards/ListingCard';
-import RequestCard from '@/components/cards/RequestCard';
+import { apiClient } from '@/lib/api/client';
+import { toListingCardModel, toRequestCardModel, toUserStats } from '@/lib/api/mappers';
+import type { Listing, RequestItem, UserStats } from '@/lib/api/types';
+import { createClient } from '@/lib/supabase/client';
+
+// Import newly extracted sub-components
+import MyProfileStats from '@/components/settings/my-profile-stats';
+import Account, { type GeolocationPermissionState } from '@/components/settings/account';
+import Notifications from '@/components/settings/notifications';
+import Appearance from '@/components/settings/appearance';
+import SDG from '@/components/settings/sdg';
+import Billing from '@/components/settings/billing';
+
+function buildAvatarUrl(seed: string) {
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+function formatJoinedLabel(value: string | null | undefined) {
+  if (!value) {
+    return 'Joined recently';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Joined recently';
+  }
+
+  return `Joined ${parsed.toLocaleString('en-US', { month: 'short', year: 'numeric' })}`;
+}
+
+function splitLocation(value: string) {
+  const [cityPart = '', countryPart = ''] = value.split(',', 2);
+
+  return {
+    city: cityPart.trim() || null,
+    country: countryPart.trim() || null,
+  };
+}
+
+function extractAvatarSeed(avatarUrl: string | null | undefined) {
+  if (!avatarUrl || !avatarUrl.includes('seed=')) {
+    return null;
+  }
+
+  return avatarUrl.split('seed=')[1]?.split('&')[0] ?? null;
+}
+
+async function getBrowserGeolocationPermission(): Promise<GeolocationPermissionState | null> {
+  if (typeof window === 'undefined' || !navigator.permissions?.query) {
+    return null;
+  }
+
+  try {
+    const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+    return permissionStatus.state as GeolocationPermissionState;
+  } catch {
+    return null;
+  }
+}
+
+async function reverseGeocodeLocation(latitude: number, longitude: number) {
+  const response = await fetch(`/api/location/reverse?lat=${latitude}&lon=${longitude}`, {
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Unable to resolve your current region.');
+  }
+
+  const payload = (await response.json()) as {
+    location?: string;
+    region?: string | null;
+    country?: string | null;
+  };
+
+  if (!payload.location) {
+    throw new Error('Unable to resolve your current region.');
+  }
+
+  return payload.location;
+}
 
 export default function ProfilePage() {
   // Stats and Active Listing States (from original profile page)
-  const [stats, setStats] = React.useState(() => mockStore.getUserStats());
-  const [listings, setListings] = React.useState<Listing[]>(() => 
-    mockStore.getListings().filter(l => l.donorName.includes('You'))
-  );
-  const [requests, setRequests] = React.useState<RequestItem[]>(() => 
-    mockStore.getRequests().filter(r => r.requesterName.includes('You'))
-  );
+  const [stats, setStats] = React.useState<UserStats>({
+    kgDiverted: 0,
+    co2Saved: 0,
+    waterSaved: 0,
+    listingsPosted: 0,
+    requestsFulfilled: 0,
+    loopPoints: 0,
+  });
+  const [listings, setListings] = React.useState<Listing[]>([]);
+  const [requests, setRequests] = React.useState<RequestItem[]>([]);
+
   const [activeTab, setActiveTab] = React.useState<'listings' | 'requests'>('listings');
 
+  // Settings Forms & Inputs States
+  // 1. Account details Form
+  const [displayName, setDisplayName] = React.useState('');
+  const [email, setEmail] = React.useState('');
+  const [location, setLocation] = React.useState('');
+  const [bio, setBio] = React.useState('');
+  const [avatarSeed, setAvatarSeed] = React.useState('CurrentUser');
+  const [sessionUserId, setSessionUserId] = React.useState<string | null>(null);
+  const [sessionEmail, setSessionEmail] = React.useState('');
+  const [joinedLabel, setJoinedLabel] = React.useState('Joined recently');
+  const [locationPermission, setLocationPermission] = React.useState<GeolocationPermissionState>('idle');
+  const [locationPrompt, setLocationPrompt] = React.useState<string | null>(null);
+  const [isResolvingLocation, setIsResolvingLocation] = React.useState(false);
+  const [isManualLocation, setIsManualLocation] = React.useState(false);
+  const [showTroubleshooting, setShowTroubleshooting] = React.useState(false);
+
   // Refreshes listings / request stats
-  const refreshData = React.useCallback(() => {
-    setStats(mockStore.getUserStats());
-    setListings(mockStore.getListings().filter(l => l.donorName.includes('You')));
-    setRequests(mockStore.getRequests().filter(r => r.requesterName.includes('You')));
+  const refreshData = React.useCallback(async () => {
+    const supabase = createClient();
+
+    try {
+      const {
+        data: { user: sessionUser },
+      } = await supabase.auth.getUser();
+      const metadata = sessionUser?.user_metadata ?? {};
+      const sessionDisplayName =
+        (typeof metadata.display_name === 'string' && metadata.display_name.trim()) ||
+        (typeof metadata.full_name === 'string' && metadata.full_name.trim()) ||
+        null;
+      const resolvedEmail = sessionUser?.email ?? '';
+      const resolvedAvatarSeed =
+        (typeof metadata.avatar_seed === 'string' && metadata.avatar_seed.trim()) ||
+        extractAvatarSeed(typeof metadata.avatar_url === 'string' ? metadata.avatar_url : null) ||
+        sessionUser?.id ||
+        'CurrentUser';
+      const sessionLocation =
+        (typeof metadata.city === 'string' && metadata.city.trim() && typeof metadata.country === 'string' && metadata.country.trim()
+          ? `${metadata.city.trim()}, ${metadata.country.trim()}`
+          : (typeof metadata.city === 'string' && metadata.city.trim()) ||
+            (typeof metadata.country === 'string' && metadata.country.trim()) ||
+            '');
+
+      setSessionUserId(sessionUser?.id ?? null);
+      setSessionEmail(resolvedEmail);
+      setDisplayName(sessionDisplayName || (resolvedEmail ? resolvedEmail.split('@')[0] : 'LoopHarvest User'));
+      setEmail(resolvedEmail);
+      setLocation((currentValue) => currentValue || sessionLocation);
+      setBio(typeof metadata.bio === 'string' ? metadata.bio : '');
+      setAvatarSeed(resolvedAvatarSeed);
+      setJoinedLabel(formatJoinedLabel(sessionUser?.created_at));
+    } catch (err) {
+      console.error('Failed to hydrate settings session data:', err);
+    }
+
+    try {
+      const [user, listingRows, requestRows, impact] = await Promise.all([
+        apiClient.getCurrentUser(),
+        apiClient.getListings(),
+        apiClient.getRequests(),
+        apiClient.getImpactSummary(),
+      ]);
+
+      setSessionUserId(user.id);
+      setDisplayName(user.display_name || user.email.split('@')[0] || 'LoopHarvest User');
+      setEmail(user.email);
+      setLocation((currentValue) => {
+        if (currentValue) {
+          return currentValue;
+        }
+
+        if (user.city && user.country) {
+          return `${user.city}, ${user.country}`;
+        }
+
+        return user.city || user.country || '';
+      });
+      setAvatarSeed(extractAvatarSeed(user.avatar_url) || user.id || 'CurrentUser');
+
+      const mappedListings = listingRows.map(toListingCardModel);
+      const mappedRequests = requestRows.map(toRequestCardModel);
+
+      const userListings = mappedListings.filter((listing) =>
+        listingRows.some((row) => row.id === listing.id && row.donor_id === user.id),
+      );
+      const userRequests = mappedRequests.filter((request) =>
+        requestRows.some((row) => row.id === request.id && row.requester_id === user.id),
+      );
+
+      setListings(userListings);
+      setRequests(userRequests);
+
+      // Dynamically calculate user's specific impact stats
+      const listingsPosted = userListings.length;
+      const requestsFulfilled = userRequests.filter(r => r.status !== 'open').length;
+      setStats(toUserStats(impact, listingsPosted, requestsFulfilled));
+    } catch (err) {
+      console.error('Failed to refresh settings API data:', err);
+    }
   }, []);
 
-  const handleClaim = (id: string) => {
-    const success = mockStore.claimListing(id);
-    if (success) {
-      refreshData();
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      void refreshData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [refreshData]);
+
+  const requestBrowserLocation = React.useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setLocationPermission('unsupported');
+      setLocationPrompt('Location is unavailable in this browser. Enable it for a better local experience.');
+      return;
+    }
+
+    setIsResolvingLocation(true);
+    setLocationPrompt(null);
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 300000,
+        });
+      });
+
+      const resolvedLocation = await reverseGeocodeLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+      );
+
+      setLocation(resolvedLocation);
+      setLocationPermission('granted');
+      setIsManualLocation(false);
+      setLocationPrompt(null);
+    } catch (error) {
+      const permissionError = error as GeolocationPositionError | Error;
+
+      if ('code' in permissionError && permissionError.code === 1) {
+        const browserPermission = await getBrowserGeolocationPermission();
+        if (browserPermission === 'granted') {
+          setLocationPermission('granted');
+          setShowTroubleshooting(true);
+          setLocationPrompt(
+            'Location access is allowed, but your device did not return coordinates. Check OS location services, then try again.',
+          );
+        } else {
+          setLocationPermission('denied');
+          setShowTroubleshooting(true);
+          setLocationPrompt('Turn on browser location access for LoopHarvest to improve local discovery and pickup relevance.');
+        }
+      } else {
+        setShowTroubleshooting(true);
+        setLocationPrompt(
+          permissionError instanceof Error
+            ? permissionError.message
+            : 'Unable to detect your current region.',
+        );
+      }
+    } finally {
+      setIsResolvingLocation(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setTimeout(() => {
+        setLocationPermission('unsupported');
+        setLocationPrompt('Location is unavailable in this browser. Enable it for a better local experience.');
+      }, 0);
+      return;
+    }
+
+    if (!navigator.permissions?.query) {
+      setTimeout(() => {
+        setLocationPermission('prompt');
+        setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
+      }, 0);
+      return;
+    }
+
+    let cancelled = false;
+    let permissionStatus: PermissionStatus | null = null;
+
+    const syncPermission = async () => {
+      try {
+        permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+        if (cancelled) {
+          return;
+        }
+
+        const nextState = permissionStatus.state as GeolocationPermissionState;
+        setLocationPermission(nextState);
+
+        if (nextState === 'granted') {
+          setIsManualLocation(false);
+          void requestBrowserLocation();
+        } else if (nextState === 'denied') {
+          setLocationPrompt('Turn on browser location access for LoopHarvest to improve local discovery and pickup relevance.');
+          setShowTroubleshooting(true);
+        } else {
+          setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
+        }
+
+        permissionStatus.onchange = () => {
+          const changedState = permissionStatus?.state as GeolocationPermissionState;
+          setLocationPermission(changedState);
+
+          if (changedState === 'granted') {
+            setIsManualLocation(false);
+            void requestBrowserLocation();
+          } else if (changedState === 'denied') {
+            setLocationPrompt('Turn on browser location access for LoopHarvest to improve local discovery and pickup relevance.');
+            setShowTroubleshooting(true);
+          } else {
+            setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
+          }
+        };
+      } catch {
+        if (!cancelled) {
+          setLocationPermission('prompt');
+          setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
+        }
+      }
+    };
+
+    void syncPermission();
+
+    return () => {
+      cancelled = true;
+      if (permissionStatus) {
+        permissionStatus.onchange = null;
+      }
+    };
+  }, [requestBrowserLocation]);
+
+  const handleClaim = async (id: string) => {
+    try {
+      await apiClient.claimListing(id);
+      await refreshData();
       triggerNotification('Listing claimed!');
+    } catch (err) {
+      triggerNotification(err instanceof Error ? err.message : 'Unable to claim listing.');
     }
   };
 
-  const handleFulfill = (id: string) => {
-    const success = mockStore.fulfillRequest(id);
-    if (success) {
-      refreshData();
+  const handleFulfill = async (id: string) => {
+    try {
+      await apiClient.fulfillRequest(id);
+      await refreshData();
       triggerNotification('Request fulfilled!');
+    } catch (err) {
+      triggerNotification(err instanceof Error ? err.message : 'Unable to fulfill request.');
     }
   };
 
   // Nav Settings Sidebar States
   const [activeSection, setActiveSection] = React.useState<string>('profile-stats');
   const [mobileActiveSection, setMobileActiveSection] = React.useState<string | null>(null);
-
-  // Settings Forms & Inputs States
-  // 1. Account details Form
-  const [displayName, setDisplayName] = React.useState('You (Current User)');
-  const [email, setEmail] = React.useState('patty@loop-harvest.org');
-  const [location, setLocation] = React.useState('San Francisco, CA');
-  const [bio, setBio] = React.useState('Compost enthusiast and urban agriculture advocate.');
-  const [avatarSeed, setAvatarSeed] = React.useState('CurrentUser');
 
   // 2. Notification Preferences
   const [emailDigest, setEmailDigest] = React.useState(true);
@@ -83,7 +384,7 @@ export default function ProfilePage() {
     if (typeof window !== 'undefined') {
       try {
         return localStorage.getItem('fl_appearance_theme') || 'Forest HSL';
-      } catch (e) {
+      } catch {
         return 'Forest HSL';
       }
     }
@@ -94,7 +395,7 @@ export default function ProfilePage() {
     if (typeof window !== 'undefined') {
       try {
         return localStorage.getItem('fl_appearance_density') || 'Comfortable';
-      } catch (e) {
+      } catch {
         return 'Comfortable';
       }
     }
@@ -105,7 +406,7 @@ export default function ProfilePage() {
     if (typeof window !== 'undefined') {
       try {
         return localStorage.getItem('fl_high_contrast') === 'true';
-      } catch (e) {
+      } catch {
         return false;
       }
     }
@@ -116,7 +417,7 @@ export default function ProfilePage() {
     if (typeof window !== 'undefined') {
       try {
         return localStorage.getItem('fl_reduce_motion') === 'true';
-      } catch (e) {
+      } catch {
         return false;
       }
     }
@@ -143,9 +444,55 @@ export default function ProfilePage() {
     window.dispatchEvent(event);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    triggerNotification('Account profile settings saved successfully!');
+
+    try {
+      const supabase = createClient();
+      const trimmedDisplayName = displayName.trim();
+      const trimmedEmail = email.trim();
+      const trimmedBio = bio.trim();
+      const trimmedSeed = avatarSeed.trim() || sessionUserId || 'CurrentUser';
+      const { city, country } = splitLocation(location);
+      const updatePayload: {
+        email?: string;
+        data: {
+          avatar_seed: string;
+          avatar_url: string;
+          bio: string;
+          city: string | null;
+          country: string | null;
+          display_name: string;
+        };
+      } = {
+        data: {
+          display_name: trimmedDisplayName || trimmedEmail.split('@')[0] || 'LoopHarvest User',
+          avatar_seed: trimmedSeed,
+          avatar_url: buildAvatarUrl(trimmedSeed),
+          city,
+          country,
+          bio: trimmedBio,
+        },
+      };
+
+      if (trimmedEmail && trimmedEmail !== sessionEmail) {
+        updatePayload.email = trimmedEmail;
+      }
+
+      const { error } = await supabase.auth.updateUser(updatePayload);
+      if (error) {
+        throw error;
+      }
+
+      await refreshData();
+      triggerNotification(
+        updatePayload.email
+          ? 'Account profile saved. Check your email if Supabase requires reconfirmation.'
+          : 'Account profile settings saved successfully!',
+      );
+    } catch (err) {
+      triggerNotification(err instanceof Error ? err.message : 'Unable to save account profile settings.');
+    }
   };
 
   const handleSaveNotifications = (e: React.FormEvent) => {
@@ -226,11 +573,6 @@ export default function ProfilePage() {
     setMobileActiveSection(id);
   };
 
-  // Calculate levels based on score points (Points / 100 + 1)
-  const userLevel = Math.floor(stats.loopPoints / 100) + 1;
-  const currentLevelXP = stats.loopPoints % 100;
-  const xpProgressPercent = currentLevelXP; // out of 100
-
   // Render Subsidebar List
   const renderSidebarList = (isMobileView: boolean) => {
     return (
@@ -245,18 +587,18 @@ export default function ProfilePage() {
               className={`group flex w-full items-start gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 border border-transparent ${
                 isActive
                   ? 'bg-[#2A4A10] text-[#A8D97F] border-[#A8D97F]/10'
-                  : 'hover:bg-white/4 text-[#A8AA98] hover:text-[#E8EAD8]'
+                  : 'hover:bg-white/4 text-[#A3A3A3] hover:text-[#FFFFFF]'
               }`}
             >
-              <div className={`mt-0.5 p-1 rounded-lg shrink-0 ${isActive ? 'bg-[#1A3A05] text-[#A8D97F]' : 'bg-white/4 text-[#A8AA98] group-hover:text-[#E8EAD8]'}`}>
+              <div className={`mt-0.5 p-1 rounded-lg shrink-0 ${isActive ? 'bg-[#1A3A05] text-[#A8D97F]' : 'bg-white/4 text-[#A3A3A3] group-hover:text-[#FFFFFF]'}`}>
                 <Icon size={16} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs font-bold block ${isActive ? 'text-[#A8D97F]' : 'text-[#E8EAD8]'}`}>
+                  <span className={`text-xs font-bold block ${isActive ? 'text-[#A8D97F]' : 'text-[#FFFFFF]'}`}>
                     {sec.label}
                   </span>
-                  <ChevronRight size={12} className={`opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'text-[#A8D97F]' : 'text-[#A8AA98]'}`} />
+                  <ChevronRight size={12} className={`opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'text-[#A8D97F]' : 'text-[#A3A3A3]'}`} />
                 </div>
                 <p className={`text-[10px] mt-0.5 leading-relaxed truncate font-medium ${isActive ? 'text-[#87B85E]' : 'text-[#8C8F7E]'}`}>
                   {sec.description}
@@ -296,670 +638,102 @@ export default function ProfilePage() {
       // 1. ORIGINAL PROFILE & STATISTICS VIEW
       case 'profile-stats':
         return (
-          <div className="space-y-8 animate-fade-in">
-            {/* Header profile intro */}
-            <div className="bg-[#1B1B1B] p-6 rounded-3xl border border-white/6 flex flex-col sm:flex-row items-center gap-6 relative overflow-hidden">
-              <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 h-36 w-36 rounded-full bg-[#A8D97F]/10 blur-3xl pointer-events-none select-none" />
-              
-              <div className="relative shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`}
-                  alt="Avatar"
-                  className="h-24 w-24 rounded-full border-4 border-[#2A4A10] bg-[#141414]"
-                />
-                <span className="absolute -bottom-2 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#A8D97F] text-xs font-black text-[#1A3A05] border-2 border-[#1B1B1B] shadow-md font-mono">
-                  {userLevel}
-                </span>
-              </div>
-
-              <div className="flex-1 space-y-4 text-center sm:text-left w-full">
-                <div>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#E8EAD8]">
-                      {displayName}
-                    </h2>
-                    <span className="inline-flex items-center gap-1 self-center sm:self-auto rounded bg-[#2A4A10] px-2.5 py-0.5 text-[10px] font-black tracking-wider text-[#A8D97F] uppercase border border-[#A8D97F]/10">
-                      <ShieldCheck size={11} />
-                      <span>{isPremium ? 'Community Patron' : 'Loop Master'}</span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#A8AA98] mt-1 font-semibold">Joined May 2026 · {location}</p>
-                  <p className="text-xs text-[#8C8F7E] mt-1.5 font-medium italic-none max-w-lg">&ldquo;{bio}&rdquo;</p>
-                </div>
-
-                <div className="space-y-1.5 max-w-md mx-auto sm:mx-0">
-                  <div className="flex justify-between text-[11px] font-bold text-[#A8AA98]">
-                    <span>Level Progress</span>
-                    <span className="font-mono text-[#A8D97F]">{currentLevelXP} / 100 XP</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-[#141414] overflow-hidden border border-white/5">
-                    <div 
-                      style={{ width: `${xpProgressPercent}%` }}
-                      className="h-full bg-[#A8D97F] rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(168,217,127,0.5)]"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Dashboard metrics widgets */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="bg-[#1B1B1B] p-4 rounded-2xl border border-white/6 text-center">
-                <Scale size={20} className="text-[#A8D97F] mx-auto mb-2" />
-                <div className="font-mono text-xl font-black text-[#E8EAD8]">{stats.kgDiverted} kg</div>
-                <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Scraps Diverted</div>
-              </div>
-
-              <div className="bg-[#1B1B1B] p-4 rounded-2xl border border-white/6 text-center">
-                <Flame size={20} className="text-[#E8A838] mx-auto mb-2" />
-                <div className="font-mono text-xl font-black text-[#E8EAD8]">{stats.co2Saved} kg</div>
-                <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">CO2 Mitigated</div>
-              </div>
-
-              <div className="bg-[#1B1B1B] p-4 rounded-2xl border border-white/6 text-center col-span-2 sm:col-span-1">
-                <Heart size={20} className="text-[#4ECDC4] mx-auto mb-2" />
-                <div className="font-mono text-xl font-black text-[#E8EAD8]">{stats.waterSaved} L</div>
-                <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Water Preserved</div>
-              </div>
-
-              <div className="bg-[#1B1B1B] p-4 rounded-2xl border border-white/6 text-center">
-                <BookOpen size={20} className="text-[#C4F09A] mx-auto mb-2" />
-                <div className="font-mono text-xl font-black text-[#E8EAD8]">{stats.listingsPosted}</div>
-                <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Donations Listed</div>
-              </div>
-
-              <div className="bg-[#1B1B1B] p-4 rounded-2xl border border-white/6 text-center">
-                <Award size={20} className="text-[#7EF8EF] mx-auto mb-2" />
-                <div className="font-mono text-xl font-black text-[#E8EAD8]">{stats.requestsFulfilled}</div>
-                <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Appeals Fulfills</div>
-              </div>
-
-              <div className="bg-[#1B1B1B] p-4 rounded-2xl border border-white/6 text-center col-span-2 sm:col-span-1">
-                <Sparkles size={20} className="text-[#A8D97F] mx-auto mb-2" />
-                <div className="font-mono text-xl font-black text-[#A8D97F]">{stats.loopPoints} XP</div>
-                <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Total Loop Score</div>
-              </div>
-            </div>
-
-            {/* User listings / requests feed tabs */}
-            <div className="space-y-4">
-              <div className="flex border-b border-white/6 pb-2 items-center justify-between">
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setActiveTab('listings')}
-                    className={`text-sm font-bold pb-2 transition-all border-b-2 relative ${
-                      activeTab === 'listings' 
-                        ? 'border-[#A8D97F] text-[#A8D97F]' 
-                        : 'border-transparent text-[#A8AA98] hover:text-[#E8EAD8]'
-                    }`}
-                  >
-                    Your Listings ({listings.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('requests')}
-                    className={`text-sm font-bold pb-2 transition-all border-b-2 relative ${
-                      activeTab === 'requests' 
-                        ? 'border-[#A8D97F] text-[#A8D97F]' 
-                        : 'border-transparent text-[#A8AA98] hover:text-[#E8EAD8]'
-                    }`}
-                  >
-                    Your Requests ({requests.length})
-                  </button>
-                </div>
-                <span className="text-[11px] text-[#A8AA98] font-bold hidden sm:inline">Only you can view active publishes</span>
-              </div>
-
-              {activeTab === 'listings' ? (
-                listings.length > 0 ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {listings.map((l) => (
-                      <ListingCard key={l.id} listing={l} onClaim={handleClaim} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-12 text-center text-xs text-[#5A5C50] bg-[#1B1B1B] border border-white/6 rounded-2xl">
-                    You haven&apos;t posted any waste materials yet. Select Create Post to get started.
-                  </div>
-                )
-              ) : (
-                requests.length > 0 ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {requests.map((r) => (
-                      <RequestCard key={r.id} request={r} onFulfill={handleFulfill} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-12 text-center text-xs text-[#5A5C50] bg-[#1B1B1B] border border-white/6 rounded-2xl">
-                    You haven&apos;t requested any scraps yet.
-                  </div>
-                )
-              )}
-            </div>
-          </div>
+          <MyProfileStats
+            stats={stats}
+            listings={listings}
+            requests={requests}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            displayName={displayName}
+            avatarSeed={avatarSeed}
+            isPremium={isPremium}
+            joinedLabel={joinedLabel}
+            location={location}
+            bio={bio}
+            handleClaim={handleClaim}
+            handleFulfill={handleFulfill}
+          />
         );
 
       // 2. ACCOUNT PROFILE DETAILS EDIT
       case 'account-details':
         return (
-          <form onSubmit={handleSaveProfile} className="space-y-6 animate-fade-in">
-            <div>
-              <h3 className="text-lg font-bold text-[#E8EAD8] font-display">Account Information</h3>
-              <p className="text-xs text-[#A8AA98] mt-1">Update your public credentials, display seed, and profile description.</p>
-            </div>
-
-            {/* Avatar seeds selector */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Choose Avatar</label>
-              <div className="flex flex-wrap gap-4 items-center">
-                {['CurrentUser', 'Patty', 'Composter', 'EcoGrower', 'HarvestHustler'].map((seed) => (
-                  <button
-                    key={seed}
-                    type="button"
-                    onClick={() => setAvatarSeed(seed)}
-                    className={`relative p-1 rounded-full border-2 transition-all hover:scale-105 active:scale-95 ${
-                      avatarSeed === seed ? 'border-[#A8D97F] bg-[#2A4A10]/20' : 'border-white/6 bg-white/4'
-                    }`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`}
-                      alt={seed}
-                      className="h-12 w-12 rounded-full"
-                    />
-                    {avatarSeed === seed && (
-                      <span className="absolute -right-1.5 -bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#A8D97F] text-[#1A3A05] border border-[#141414]">
-                        <Check size={10} strokeWidth={3} />
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Display Name</label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full h-11 bg-white/4 border border-white/8 rounded-xl px-4 text-sm font-semibold text-[#E8EAD8] focus:outline-none focus:border-[#A8D97F] transition-colors"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Email Address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-11 bg-white/4 border border-white/8 rounded-xl px-4 text-sm font-semibold text-[#E8EAD8] focus:outline-none focus:border-[#A8D97F] transition-colors"
-                />
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Location (Region)</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full h-11 bg-white/4 border border-white/8 rounded-xl px-4 text-sm font-semibold text-[#E8EAD8] focus:outline-none focus:border-[#A8D97F] transition-colors"
-                />
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Public Biography</label>
-                <textarea
-                  value={bio}
-                  rows={3}
-                  onChange={(e) => setBio(e.target.value)}
-                  className="w-full bg-white/4 border border-white/8 rounded-xl p-4 text-sm font-semibold text-[#E8EAD8] focus:outline-none focus:border-[#A8D97F] transition-colors resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="border-t border-white/6 pt-4 flex justify-end">
-              <button
-                type="submit"
-                className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
-              >
-                <Save size={16} />
-                <span>Save Profile</span>
-              </button>
-            </div>
-          </form>
+          <Account
+            displayName={displayName}
+            setDisplayName={setDisplayName}
+            email={email}
+            setEmail={setEmail}
+            location={location}
+            setLocation={setLocation}
+            bio={bio}
+            setBio={setBio}
+            avatarSeed={avatarSeed}
+            setAvatarSeed={setAvatarSeed}
+            locationPermission={locationPermission}
+            locationPrompt={locationPrompt}
+            isResolvingLocation={isResolvingLocation}
+            isManualLocation={isManualLocation}
+            setIsManualLocation={setIsManualLocation}
+            showTroubleshooting={showTroubleshooting}
+            setShowTroubleshooting={setShowTroubleshooting}
+            requestBrowserLocation={requestBrowserLocation}
+            handleSaveProfile={handleSaveProfile}
+          />
         );
 
       // 3. NOTIFICATION RADII & CHANNELS
       case 'notifications':
         return (
-          <form onSubmit={handleSaveNotifications} className="space-y-6 animate-fade-in">
-            <div>
-              <h3 className="text-lg font-bold text-[#E8EAD8] font-display">Notification Settings</h3>
-              <p className="text-xs text-[#A8AA98] mt-1">Configure your real-time alerts and set maximum geographic search parameters.</p>
-            </div>
-
-            {/* Radius alert slider */}
-            <div className="bg-[#1B1B1B] p-5 rounded-2xl border border-white/5 space-y-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="text-sm font-bold text-[#E8EAD8]">Alert Radius Parameter</h4>
-                  <p className="text-[11px] text-[#A8AA98] mt-0.5">Receive immediate notifications when new scraps are listed within this radius.</p>
-                </div>
-                <span className="font-mono text-base font-black text-[#A8D97F] bg-[#2A4A10]/30 px-3 py-1 rounded-lg border border-[#A8D97F]/10 shrink-0">
-                  {alertRadius} miles
-                </span>
-              </div>
-              
-              <div className="space-y-1">
-                <input
-                  type="range"
-                  min="1"
-                  max="50"
-                  value={alertRadius}
-                  onChange={(e) => setAlertRadius(Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full bg-[#141414] appearance-none cursor-pointer accent-[#A8D97F]"
-                />
-                <div className="flex justify-between text-[10px] font-bold text-[#8C8F7E] font-mono">
-                  <span>1 mile</span>
-                  <span>25 miles</span>
-                  <span>50 miles</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Toggle alert options */}
-            <div className="space-y-4 pt-2">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Communication Channels</label>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 rounded-xl border border-white/6 hover:bg-white/2 transition">
-                  <div className="flex-1 pr-4">
-                    <h5 className="text-sm font-bold text-[#E8EAD8]">Email Weekly Digest</h5>
-                    <p className="text-[11px] text-[#A8AA98] mt-0.5">A condensed summary of loop achievements, CO2 savings, and top regional donors.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEmailDigest(!emailDigest)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      emailDigest ? 'bg-[#A8D97F]' : 'bg-white/10'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-[#141414] shadow ring-0 transition duration-200 ease-in-out ${
-                      emailDigest ? 'translate-x-5 bg-[#1A3A05]' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-xl border border-white/6 hover:bg-white/2 transition">
-                  <div className="flex-1 pr-4">
-                    <h5 className="text-sm font-bold text-[#E8EAD8]">Real-time Push Alerts</h5>
-                    <p className="text-[11px] text-[#A8AA98] mt-0.5">Instant browser notifications for nearby listings, chats, and request acceptances.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setPushAlerts(!pushAlerts)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      pushAlerts ? 'bg-[#A8D97F]' : 'bg-white/10'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-[#141414] shadow ring-0 transition duration-200 ease-in-out ${
-                      pushAlerts ? 'translate-x-5 bg-[#1A3A05]' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-xl border border-white/6 hover:bg-white/2 transition">
-                  <div className="flex-1 pr-4">
-                    <h5 className="text-sm font-bold text-[#E8EAD8]">Socio-Environmental Achievements</h5>
-                    <p className="text-[11px] text-[#A8AA98] mt-0.5">Notify me immediately when I reach milestones, divert goals, or level up.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEcoReports(!ecoReports)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      ecoReports ? 'bg-[#A8D97F]' : 'bg-white/10'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-[#141414] shadow ring-0 transition duration-200 ease-in-out ${
-                      ecoReports ? 'translate-x-5 bg-[#1A3A05]' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-white/6 pt-4 flex justify-end">
-              <button
-                type="submit"
-                className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
-              >
-                <Save size={16} />
-                <span>Save Alert Configurations</span>
-              </button>
-            </div>
-          </form>
+          <Notifications
+            alertRadius={alertRadius}
+            setAlertRadius={setAlertRadius}
+            emailDigest={emailDigest}
+            setEmailDigest={setEmailDigest}
+            pushAlerts={pushAlerts}
+            setPushAlerts={setPushAlerts}
+            ecoReports={ecoReports}
+            setEcoReports={setEcoReports}
+            handleSaveNotifications={handleSaveNotifications}
+          />
         );
 
       // 4. THEMES, ACCESSIBILITY, GRAPHICS
       case 'appearance':
         return (
-          <form onSubmit={handleSaveAppearance} className="space-y-6 animate-fade-in">
-            <div>
-              <h3 className="text-lg font-bold text-[#E8EAD8] font-display">Appearance & Themes</h3>
-              <p className="text-xs text-[#A8AA98] mt-1">Adjust graphics, fonts, container contrast scales, and interface density options.</p>
-            </div>
-
-            {/* Theme selector */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Theme Palette</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  { name: 'Forest HSL', desc: 'Default (Eco-Green)', css: 'bg-[#141414] border-[#A8D97F] text-[#A8D97F]' },
-                  { name: 'Classic Dark', desc: 'Charcoal Minimal', css: 'bg-[#121212] border-white/10 text-white' },
-                  { name: 'Light Mode', desc: 'Disabled (Dark First)', css: 'bg-white border-black/10 text-black opacity-50 cursor-not-allowed' }
-                ].map((th) => (
-                  <button
-                    key={th.name}
-                    type="button"
-                    disabled={th.name === 'Light Mode'}
-                    onClick={() => th.name !== 'Light Mode' && setSelectedTheme(th.name)}
-                    className={`p-4 rounded-xl border text-left transition-all relative ${
-                      selectedTheme === th.name && th.name !== 'Light Mode'
-                        ? 'bg-[#2A4A10]/20 border-[#A8D97F] ring-2 ring-[#A8D97F]/20'
-                        : 'bg-white/4 border-white/6 hover:bg-white/8'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-[#E8EAD8]">{th.name}</span>
-                      {selectedTheme === th.name && th.name !== 'Light Mode' && (
-                        <CheckCircle size={14} className="text-[#A8D97F]" />
-                      )}
-                    </div>
-                    <p className="text-[10px] text-[#A8AA98] mt-1 font-semibold">{th.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Density Selector */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Interface Density</label>
-              <div className="flex gap-2 bg-[#141414] p-1.5 rounded-xl border border-white/6 max-w-sm">
-                {['Comfortable', 'Compact', 'Spacious'].map((den) => (
-                  <button
-                    key={den}
-                    type="button"
-                    onClick={() => setSelectedDensity(den)}
-                    className={`flex-1 text-center py-2 text-xs font-bold rounded-lg transition-all ${
-                      selectedDensity === den
-                        ? 'bg-[#A8D97F] text-[#1A3A05]'
-                        : 'text-[#A8AA98] hover:text-[#E8EAD8] hover:bg-white/2'
-                    }`}
-                  >
-                    {den}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Accessibility toggles */}
-            <div className="space-y-4 pt-2">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Accessibility Toggles</label>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 rounded-xl border border-white/6 hover:bg-white/2 transition">
-                  <div className="flex-1 pr-4">
-                    <h5 className="text-sm font-bold text-[#E8EAD8]">High Contrast Typography</h5>
-                    <p className="text-[11px] text-[#A8AA98] mt-0.5">Increases text color luminance threshold to support screen readers and clarity.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setHighContrast(!highContrast)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      highContrast ? 'bg-[#A8D97F]' : 'bg-white/10'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-[#141414] shadow ring-0 transition duration-200 ease-in-out ${
-                      highContrast ? 'translate-x-5 bg-[#1A3A05]' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-xl border border-white/6 hover:bg-white/2 transition">
-                  <div className="flex-1 pr-4">
-                    <h5 className="text-sm font-bold text-[#E8EAD8]">Reduce UI Motions</h5>
-                    <p className="text-[11px] text-[#A8AA98] mt-0.5">Disables fluid sidebar slides, globe spins, and transitions for enhanced accessibility.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setReduceMotion(!reduceMotion)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      reduceMotion ? 'bg-[#A8D97F]' : 'bg-white/10'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-[#141414] shadow ring-0 transition duration-200 ease-in-out ${
-                      reduceMotion ? 'translate-x-5 bg-[#1A3A05]' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-white/6 pt-4 flex justify-end">
-              <button
-                type="submit"
-                className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
-              >
-                <Save size={16} />
-                <span>Apply Appearance</span>
-              </button>
-            </div>
-          </form>
+          <Appearance
+            selectedTheme={selectedTheme}
+            setSelectedTheme={setSelectedTheme}
+            selectedDensity={selectedDensity}
+            setSelectedDensity={setSelectedDensity}
+            highContrast={highContrast}
+            setHighContrast={setHighContrast}
+            reduceMotion={reduceMotion}
+            setReduceMotion={setReduceMotion}
+            handleSaveAppearance={handleSaveAppearance}
+          />
         );
 
       // 5. ECO GOALS, WASTE DIVERSIONS & PREFERENCES
       case 'sustainability':
         return (
-          <form onSubmit={handleSaveSustainability} className="space-y-6 animate-fade-in">
-            <div>
-              <h3 className="text-lg font-bold text-[#E8EAD8] font-display">Sustainability Preferences</h3>
-              <p className="text-xs text-[#A8AA98] mt-1">Manage target annual bio-mass diversions and configure your favorite scrap streams.</p>
-            </div>
-
-            {/* Annual goal slider */}
-            <div className="bg-[#1B1B1B] p-5 rounded-2xl border border-white/5 space-y-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="text-sm font-bold text-[#E8EAD8]">Annual Waste Diversion Target</h4>
-                  <p className="text-[11px] text-[#A8AA98] mt-0.5">Set a metric target for the mass of organic matter you aim to salvage/compost.</p>
-                </div>
-                <span className="font-mono text-base font-black text-[#A8D97F] bg-[#2A4A10]/30 px-3 py-1 rounded-lg border border-[#A8D97F]/10 shrink-0">
-                  {diversionGoal} kg / year
-                </span>
-              </div>
-              
-              <div className="space-y-1">
-                <input
-                  type="range"
-                  min="100"
-                  max="5000"
-                  step="50"
-                  value={diversionGoal}
-                  onChange={(e) => setDiversionGoal(Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full bg-[#141414] appearance-none cursor-pointer accent-[#A8D97F]"
-                />
-                <div className="flex justify-between text-[10px] font-bold text-[#8C8F7E] font-mono">
-                  <span>100 kg</span>
-                  <span>2500 kg</span>
-                  <span>5000 kg</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Scrap Type checklist */}
-            <div className="space-y-3 pt-2">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Preferred Material Streams</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { id: 'fruitVeg', label: 'Fruits & Veggies Scraps', desc: 'Compost feed, high nitrogen' },
-                  { id: 'coffeeTea', label: 'Coffee Grounds & Tea', desc: 'Great for acidic soil mixing' },
-                  { id: 'eggshells', label: 'Crushed Eggshells', desc: 'Calcium rich additive sources' },
-                  { id: 'yardWaste', label: 'Yard clippings & Leaves', desc: 'Carbon-heavy dry matter brown source' },
-                  { id: 'bakery', label: 'Bakery & Grain Excess', desc: 'Valuable animal feeds, chicken feed' }
-                ].map((scrap) => {
-                  const key = scrap.id as keyof typeof scrapPrefs;
-                  const isChecked = scrapPrefs[key];
-                  return (
-                    <button
-                      key={scrap.id}
-                      type="button"
-                      onClick={() => setScrapPrefs(prev => ({ ...prev, [key]: !isChecked }))}
-                      className={`p-4 rounded-xl border text-left flex items-start justify-between transition-colors ${
-                        isChecked 
-                          ? 'bg-[#2A4A10]/20 border-[#A8D97F]/30 text-[#A8D97F]' 
-                          : 'bg-white/4 border-white/6 hover:bg-white/6 text-[#A8AA98]'
-                      }`}
-                    >
-                      <div className="pr-4">
-                        <span className="text-sm font-bold text-[#E8EAD8]">{scrap.label}</span>
-                        <p className="text-[10px] text-[#A8AA98] mt-1 font-semibold">{scrap.desc}</p>
-                      </div>
-                      <div className={`h-5 w-5 rounded-md flex items-center justify-center border shrink-0 transition-colors ${
-                        isChecked ? 'bg-[#A8D97F] border-transparent text-[#1A3A05]' : 'border-white/20'
-                      }`}>
-                        {isChecked && <Check size={12} strokeWidth={4} />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Usage Select options */}
-            <div className="space-y-1.5 pt-2 max-w-sm">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Primary Scrap Utilization</label>
-              <select
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value)}
-                className="w-full h-11 bg-white/4 border border-white/8 rounded-xl px-4 text-sm font-semibold text-[#E8EAD8] focus:outline-none focus:border-[#A8D97F] transition-colors cursor-pointer"
-              >
-                {['Composting', 'Animal Feed', 'Biogas / Biofuel Energy', 'Urban Crop Cultivation'].map((pur) => (
-                  <option key={pur} value={pur} className="bg-[#141414] text-[#E8EAD8] font-semibold">{pur}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="border-t border-white/6 pt-4 flex justify-end">
-              <button
-                type="submit"
-                className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
-              >
-                <Save size={16} />
-                <span>Save Environmental Goals</span>
-              </button>
-            </div>
-          </form>
+          <SDG
+            diversionGoal={diversionGoal}
+            setDiversionGoal={setDiversionGoal}
+            purpose={purpose}
+            setPurpose={setPurpose}
+            scrapPrefs={scrapPrefs}
+            setScrapPrefs={setScrapPrefs}
+            handleSaveSustainability={handleSaveSustainability}
+          />
         );
 
       // 6. PREMIUM TIERS, PAYMENTS & LOGS
       case 'billing':
         return (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <h3 className="text-lg font-bold text-[#E8EAD8] font-display">Sponsorship & Plans</h3>
-              <p className="text-xs text-[#A8AA98] mt-1">Unlock premium 3D graphics mapping tools and help fund zero-waste logistics.</p>
-            </div>
-
-            {/* Plan tier cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Free Tier Card */}
-              <div className={`p-5 rounded-2xl border flex flex-col justify-between min-h-[160px] relative overflow-hidden ${
-                !isPremium ? 'bg-[#1B1B1B] border-[#2A4A10]' : 'bg-white/2 border-white/6 opacity-60'
-              }`}>
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black tracking-wider uppercase bg-[#141414] px-2.5 py-0.5 rounded border border-white/6 text-[#A8AA98]">FREE TIER</span>
-                    {!isPremium && <span className="text-[10px] font-bold text-[#A8D97F] flex items-center gap-1"><CheckCircle size={12} /> Active</span>}
-                  </div>
-                  <h4 className="text-lg font-bold text-[#E8EAD8] mt-3">Eco Supporter</h4>
-                  <p className="text-[11px] text-[#A8AA98] mt-1 leading-relaxed">Basic scrap listings, browse community globe pins, view standard metrics.</p>
-                </div>
-                <div className="text-sm font-mono font-black text-[#E8EAD8] mt-4">$0.00 <span className="text-[10px] font-semibold text-[#8C8F7E]">/ month</span></div>
-              </div>
-
-              {/* Premium Tier Card */}
-              <div className={`p-5 rounded-2xl border flex flex-col justify-between min-h-[160px] relative overflow-hidden ${
-                isPremium ? 'bg-[#1B1B1B] border-[#A8D97F]' : 'bg-[#2A4A10]/10 border-[#A8D97F]/20'
-              }`}>
-                {/* Glow badge overlay */}
-                <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 h-16 w-16 bg-[#A8D97F]/10 rounded-full blur-xl pointer-events-none" />
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black tracking-wider uppercase bg-[#A8D97F] px-2.5 py-0.5 rounded text-[#1A3A05] flex items-center gap-1">
-                      <Sparkles size={11} /> Community Patron
-                    </span>
-                    {isPremium && <span className="text-[10px] font-bold text-[#A8D97F] flex items-center gap-1"><CheckCircle size={12} /> Active</span>}
-                  </div>
-                  <h4 className="text-lg font-bold text-[#E8EAD8] mt-3">Loop Advocate</h4>
-                  <p className="text-[11px] text-[#A8AA98] mt-1 leading-relaxed">Unlimited 3D map flying queries, priority pickup labels, custom page skins, monthly CO2 certifications.</p>
-                </div>
-                
-                {isPremium ? (
-                  <div className="text-sm font-mono font-black text-[#A8D97F] mt-4">$4.99 <span className="text-[10px] font-semibold text-[#87B85E]">/ month</span></div>
-                ) : (
-                  <div className="mt-4 flex items-center justify-between gap-4">
-                    <span className="text-sm font-mono font-black text-[#E8EAD8]">$4.99 <span className="text-[10px] font-semibold text-[#8C8F7E]">/ mo</span></span>
-                    <button
-                      type="button"
-                      onClick={handleUpgradePremium}
-                      className="rounded-lg bg-[#A8D97F] px-3.5 py-1.5 text-xs font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
-                    >
-                      Upgrade Plan
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Invoices Logs table */}
-            <div className="space-y-3 pt-2">
-              <label className="text-xs font-bold text-[#A8AA98] uppercase tracking-wider block">Billing History Logs</label>
-              
-              <div className="border border-white/6 rounded-xl overflow-hidden bg-white/2">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-[#1B1B1B] border-b border-white/6 text-[#A8AA98] font-bold">
-                      <th className="p-3">Billing Date</th>
-                      <th className="p-3">Reference / Plan</th>
-                      <th className="p-3">Amount Charged</th>
-                      <th className="p-3 text-right">Invoice State</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/4 text-[#E8EAD8]">
-                    {isPremium && (
-                      <tr>
-                        <td className="p-3 font-mono font-semibold flex items-center gap-1.5">
-                          <Clock size={12} className="text-[#A8D97F]" /> May 20, 2026
-                        </td>
-                        <td className="p-3 font-semibold">Loop Advocate Plan (Active)</td>
-                        <td className="p-3 font-mono font-bold">$4.99 USD</td>
-                        <td className="p-3 text-right text-xs text-[#A8D97F] font-bold">Paid</td>
-                      </tr>
-                    )}
-                    <tr>
-                      <td className="p-3 font-mono font-semibold text-[#A8AA98]">May 01, 2026</td>
-                      <td className="p-3 font-semibold text-[#A8AA98]">Account Setup / Registration</td>
-                      <td className="p-3 font-mono text-[#A8AA98]">$0.00 USD</td>
-                      <td className="p-3 text-right text-xs text-[#A8AA98] font-semibold">Processed</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Billing
+            isPremium={isPremium}
+            handleUpgradePremium={handleUpgradePremium}
+          />
         );
 
       default:
@@ -968,16 +742,16 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="flex min-h-screen md:h-screen flex-col bg-[#0A0A0A] text-[#E8EAD8] md:overflow-hidden">
+    <main className="flex min-h-screen md:h-screen flex-col bg-[#0A0A0A] text-[#FFFFFF] md:overflow-hidden">
       <div className="relative flex flex-1 overflow-y-auto md:overflow-hidden md:h-full w-full">
         
         {/* Subsidebar Desktop Panel (Left Pane) - Stuck flush to the left, no margins, no rounded corners */}
         <aside className="hidden md:flex w-72 lg:w-80 shrink-0 flex-col border-r border-white/6 bg-[#0E0E0E] h-full overflow-y-auto p-4 scrollbar-none">
           <div className="mb-4 px-3 pt-2">
-            <h1 className="font-display text-lg font-extrabold tracking-tight text-[#E8EAD8]">
+            <h1 className="font-display text-lg font-extrabold tracking-tight text-[#FFFFFF]">
               Settings
             </h1>
-            <p className="text-[11px] text-[#A8AA98] mt-1 font-semibold">
+            <p className="text-[11px] text-[#A3A3A3] mt-1 font-semibold">
               Manage your community profile & configs
             </p>
           </div>
@@ -999,10 +773,10 @@ export default function ProfilePage() {
         {mobileActiveSection === null && (
           <div className="block md:hidden w-full h-full overflow-y-auto bg-[#0A0A0A] p-4 pb-28">
             <div className="mb-4 px-1">
-              <h1 className="font-display text-2xl font-extrabold tracking-tight text-[#E8EAD8]">
+              <h1 className="font-display text-2xl font-extrabold tracking-tight text-[#FFFFFF]">
                 Settings
               </h1>
-              <p className="text-xs text-[#A8AA98] mt-1 font-semibold">
+              <p className="text-xs text-[#A3A3A3] mt-1 font-semibold">
                 Manage your community profile & configs
               </p>
             </div>
