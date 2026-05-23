@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight, Heart, Search, Sparkles, Inbox } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import ListingCard from "@/components/cards/ListingCard";
 import RequestCard from "@/components/cards/RequestCard";
@@ -10,7 +11,7 @@ import CategoryChip from "@/components/common/CategoryChip";
 import { apiClient } from "@/lib/api/client";
 import { toListingCardModel, toRequestCardModel, toUserStats } from "@/lib/api/mappers";
 import type { CategorySlug } from "@/lib/categories";
-import type { Listing, RequestItem, UserStats } from "@/lib/api/types";
+import type { ApiListing, ApiRequest, Listing, RequestItem, UserStats } from "@/lib/api/types";
 
 const EMPTY_STATS: UserStats = {
   kgDiverted: 0,
@@ -23,93 +24,101 @@ const EMPTY_STATS: UserStats = {
 
 export default function HomeFeed() {
   const { categories } = useCategories();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<"listings" | "requests">("listings");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState<CategorySlug | null>(null);
-  const [listings, setListings] = React.useState<Listing[]>([]);
-  const [requests, setRequests] = React.useState<RequestItem[]>([]);
-  const [stats, setStats] = React.useState<UserStats>(EMPTY_STATS);
-  const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
   const categoriesRef = React.useRef<HTMLDivElement | null>(null);
   const [showLeftArrow, setShowLeftArrow] = React.useState(false);
   const [showRightArrow, setShowRightArrow] = React.useState(false);
 
-  const loadData = React.useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Queries
+  const { data: listings = [], isLoading: listingsLoading, error: listingsError } = useQuery({
+    queryKey: ["listings"],
+    queryFn: apiClient.getListings,
+    select: (data) => data.map(toListingCardModel),
+  });
 
-    try {
-      const [listingRows, requestRows, impact] = await Promise.all([
-        apiClient.getListings(),
-        apiClient.getRequests(),
-        apiClient.getImpactSummary(),
-      ]);
+  const { data: requests = [], isLoading: requestsLoading, error: requestsError } = useQuery({
+    queryKey: ["requests"],
+    queryFn: apiClient.getRequests,
+    select: (data) => data.map(toRequestCardModel),
+  });
 
-      const mappedListings = listingRows.map(toListingCardModel);
-      const mappedRequests = requestRows.map(toRequestCardModel);
+  const { data: impactSummary, isLoading: impactLoading, error: impactError } = useQuery({
+    queryKey: ["impact"],
+    queryFn: apiClient.getImpactSummary,
+  });
 
-      setListings(mappedListings);
-      setRequests(mappedRequests);
-      setStats(
-        toUserStats(
-          impact,
-          mappedListings.length,
-          mappedRequests.filter((request) => request.status !== "open").length,
-        ),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load the marketplace.");
-    } finally {
-      setLoading(false);
+  const stats = React.useMemo(() => {
+    if (!impactSummary) {
+      return EMPTY_STATS;
     }
-  }, []);
+    return toUserStats(
+      impactSummary,
+      listings.length,
+      requests.filter((request) => request.status !== "open").length,
+    );
+  }, [impactSummary, listings, requests]);
 
-  React.useEffect(() => {
-    let cancelled = false;
+  const loading = listingsLoading || requestsLoading || impactLoading;
+  const fetchError = listingsError || requestsError || impactError;
+  const displayError = error || (fetchError instanceof Error ? fetchError.message : fetchError ? "Unable to load the marketplace." : null);
 
-    const initialize = async () => {
-      try {
-        const [listingRows, requestRows, impact] = await Promise.all([
-          apiClient.getListings(),
-          apiClient.getRequests(),
-          apiClient.getImpactSummary(),
-        ]);
+  // Mutations
+  const claimMutation = useMutation({
+    mutationFn: (id: string) => apiClient.claimListing(id),
+    onMutate: async (id) => {
+      setError(null);
+      await queryClient.cancelQueries({ queryKey: ["listings"] });
+      const previousListings = queryClient.getQueryData<ApiListing[]>(["listings"]);
 
-        if (cancelled) {
-          return;
-        }
+      queryClient.setQueryData<ApiListing[]>(["listings"], (old) =>
+        old ? old.map((l) => (l.id === id ? { ...l, status: "claimed" } : l)) : [],
+      );
 
-        const mappedListings = listingRows.map(toListingCardModel);
-        const mappedRequests = requestRows.map(toRequestCardModel);
-
-        setListings(mappedListings);
-        setRequests(mappedRequests);
-        setStats(
-          toUserStats(
-            impact,
-            mappedListings.length,
-            mappedRequests.filter((request) => request.status !== "open").length,
-          ),
-        );
-        setError(null);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unable to load the marketplace.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      window.dispatchEvent(new CustomEvent("post-created", { detail: "Listing claimed." }));
+      return { previousListings };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousListings) {
+        queryClient.setQueryData(["listings"], context.previousListings);
       }
-    };
+      setError(err instanceof Error ? err.message : "Unable to claim this listing.");
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["listings"] });
+      void queryClient.invalidateQueries({ queryKey: ["impact"] });
+    },
+  });
 
-    void initialize();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadData]);
+  const fulfillMutation = useMutation({
+    mutationFn: (id: string) => apiClient.fulfillRequest(id),
+    onMutate: async (id) => {
+      setError(null);
+      await queryClient.cancelQueries({ queryKey: ["requests"] });
+      const previousRequests = queryClient.getQueryData<ApiRequest[]>(["requests"]);
+
+      queryClient.setQueryData<ApiRequest[]>(["requests"], (old) =>
+        old ? old.map((r) => (r.id === id ? { ...r, status: "fulfilled" } : r)) : [],
+      );
+
+      window.dispatchEvent(new CustomEvent("post-created", { detail: "Request fulfilled." }));
+      return { previousRequests };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousRequests) {
+        queryClient.setQueryData(["requests"], context.previousRequests);
+      }
+      setError(err instanceof Error ? err.message : "Unable to fulfill this request.");
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["requests"] });
+      void queryClient.invalidateQueries({ queryKey: ["impact"] });
+    },
+  });
 
   const checkScroll = React.useCallback(() => {
     const element = categoriesRef.current;
@@ -125,7 +134,6 @@ export default function HomeFeed() {
     const handleResize = () => checkScroll();
     
     handleResize();
-    // Initial check with a tiny delay to allow fonts & layout to settle
     const timer = setTimeout(() => {
       handleResize();
     }, 100);
@@ -148,24 +156,12 @@ export default function HomeFeed() {
     });
   }, []);
 
-  const handleClaim = async (id: string) => {
-    try {
-      await apiClient.claimListing(id);
-      window.dispatchEvent(new CustomEvent("post-created", { detail: "Listing claimed." }));
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to claim this listing.");
-    }
+  const handleClaim = (id: string) => {
+    claimMutation.mutate(id);
   };
 
-  const handleFulfill = async (id: string) => {
-    try {
-      await apiClient.fulfillRequest(id);
-      window.dispatchEvent(new CustomEvent("post-created", { detail: "Request fulfilled." }));
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to fulfill this request.");
-    }
+  const handleFulfill = (id: string) => {
+    fulfillMutation.mutate(id);
   };
 
   const filteredListings = listings.filter((listing) => {
@@ -222,9 +218,9 @@ export default function HomeFeed() {
           </div>
         </div>
 
-        {error && (
+        {displayError && (
           <div className="rounded-xl border border-[#E05656]/30 bg-[#7A1010]/20 px-4 py-3 text-sm text-[#FFB4AB]">
-            {error}
+            {displayError}
           </div>
         )}
 

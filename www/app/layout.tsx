@@ -7,6 +7,7 @@ import theme from '@/lib/theme';
 import "./globals.css";
 import ThemeSync from "@/components/common/ThemeSync";
 import { CategoriesProvider } from "@/components/common/CategoriesProvider";
+import ReactQueryProvider from "@/components/common/ReactQueryProvider";
 
 const syne = Syne({
   subsets: ["latin"],
@@ -48,7 +49,9 @@ export default function RootLayout({
         <InitColorSchemeScript attribute="class" defaultMode="dark" />
         <AppRouterCacheProvider>
           <ThemeProvider theme={theme}>
-            <CategoriesProvider>{children}</CategoriesProvider>
+            <ReactQueryProvider>
+              <CategoriesProvider>{children}</CategoriesProvider>
+            </ReactQueryProvider>
           </ThemeProvider>
         </AppRouterCacheProvider>
       </body>

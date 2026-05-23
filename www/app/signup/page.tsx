@@ -114,7 +114,7 @@ export default function SignupPage() {
               onClick={() => setRole('recipient')}
               className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
                 role === 'recipient'
-                  ? 'bg-[#004D48] text-[#4ECDC4]'
+                  ? 'bg-[#2A4A10] text-[#A8D97F]'
                   : 'text-[#A3A3A3] hover:text-[#FFFFFF]'
               }`}
             >
@@ -187,9 +187,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className={`mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black transition-transform active:scale-[0.98] disabled:opacity-50 ${
-              role === 'donor' ? 'bg-[#A8D97F] text-[#1A3A05]' : 'bg-[#4ECDC4] text-[#003733]'
-            }`}
+            className={`mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black transition-transform active:scale-[0.98] disabled:opacity-50 bg-[#A8D97F] text-[#1A3A05]`}
           >
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

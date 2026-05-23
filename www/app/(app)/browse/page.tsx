@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { ChevronLeft, ChevronRight, Globe as GlobeIcon, List as ListIcon, Map as MapIcon, Search } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import ListingCard from '@/components/cards/ListingCard';
 import RequestCard from '@/components/cards/RequestCard';
@@ -11,15 +12,14 @@ import Globe from '@/components/Globe';
 import { apiClient } from '@/lib/api/client';
 import { toListingCardModel, toRequestCardModel } from '@/lib/api/mappers';
 import type { CategorySlug } from '@/lib/categories';
-import type { Listing, RequestItem } from '@/lib/api/types';
+import type { ApiListing, ApiRequest, Listing, RequestItem } from '@/lib/api/types';
 
 export default function BrowseMapPage() {
   const { categories } = useCategories();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<'listings' | 'requests'>('listings');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState<CategorySlug | null>(null);
-  const [listings, setListings] = React.useState<Listing[]>([]);
-  const [requests, setRequests] = React.useState<RequestItem[]>([]);
   const [selectedItem, setSelectedItem] = React.useState<Listing | RequestItem | null>(null);
   const [isLargeScreen, setIsLargeScreen] = React.useState(false);
   const [showMapOnMobile, setShowMapOnMobile] = React.useState(false);
@@ -28,6 +28,98 @@ export default function BrowseMapPage() {
   const categoriesRef = React.useRef<HTMLDivElement | null>(null);
   const [showLeftArrow, setShowLeftArrow] = React.useState(false);
   const [showRightArrow, setShowRightArrow] = React.useState(false);
+
+  // Queries
+  const { data: listings = [], error: listingsError } = useQuery({
+    queryKey: ['listings'],
+    queryFn: apiClient.getListings,
+    select: (data) => data.map(toListingCardModel),
+  });
+
+  const { data: requests = [], error: requestsError } = useQuery({
+    queryKey: ['requests'],
+    queryFn: apiClient.getRequests,
+    select: (data) => data.map(toRequestCardModel),
+  });
+
+  const fetchError = listingsError || requestsError;
+  const displayError = error || (fetchError instanceof Error ? fetchError.message : fetchError ? 'Unable to load the marketplace map.' : null);
+
+  // Mutations
+  const claimMutation = useMutation({
+    mutationFn: (id: string) => apiClient.claimListing(id),
+    onMutate: async (id) => {
+      setError(null);
+      await queryClient.cancelQueries({ queryKey: ['listings'] });
+      const previousListings = queryClient.getQueryData<ApiListing[]>(['listings']);
+      const previousSelectedItem = selectedItem;
+
+      queryClient.setQueryData<ApiListing[]>(['listings'], (old) =>
+        old ? old.map((l) => (l.id === id ? { ...l, status: 'claimed' } : l)) : []
+      );
+
+      if (selectedItem && selectedItem.id === id) {
+        setSelectedItem({ ...selectedItem, status: 'claimed' });
+      }
+
+      window.dispatchEvent(new CustomEvent('post-created', { detail: 'Listing claimed.' }));
+      return { previousListings, previousSelectedItem };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousListings) {
+        queryClient.setQueryData(['listings'], context.previousListings);
+      }
+      if (context?.previousSelectedItem !== undefined) {
+        setSelectedItem(context.previousSelectedItem);
+      }
+      setError(err instanceof Error ? err.message : 'Unable to claim this listing.');
+    },
+    onSuccess: () => {
+      setSelectedItem(null);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['impact'] });
+    },
+  });
+
+  const fulfillMutation = useMutation({
+    mutationFn: (id: string) => apiClient.fulfillRequest(id),
+    onMutate: async (id) => {
+      setError(null);
+      await queryClient.cancelQueries({ queryKey: ['requests'] });
+      const previousRequests = queryClient.getQueryData<ApiRequest[]>(['requests']);
+      const previousSelectedItem = selectedItem;
+
+      queryClient.setQueryData<ApiRequest[]>(['requests'], (old) =>
+        old ? old.map((r) => (r.id === id ? { ...r, status: 'fulfilled' } : r)) : []
+      );
+
+      if (selectedItem && selectedItem.id === id) {
+        setSelectedItem({ ...selectedItem, status: 'completed' });
+      }
+
+      window.dispatchEvent(new CustomEvent('post-created', { detail: 'Request fulfilled.' }));
+      return { previousRequests, previousSelectedItem };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousRequests) {
+        queryClient.setQueryData(['requests'], context.previousRequests);
+      }
+      if (context?.previousSelectedItem !== undefined) {
+        setSelectedItem(context.previousSelectedItem);
+      }
+      setError(err instanceof Error ? err.message : 'Unable to fulfill this request.');
+    },
+    onSuccess: () => {
+      setSelectedItem(null);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['impact'] });
+    },
+  });
+
   const checkScroll = React.useCallback(() => {
     const element = categoriesRef.current;
     if (!element) {
@@ -51,50 +143,6 @@ export default function BrowseMapPage() {
     });
   }, []);
 
-  const loadData = React.useCallback(async () => {
-    try {
-      setError(null);
-      const [listingRows, requestRows] = await Promise.all([
-        apiClient.getListings(),
-        apiClient.getRequests(),
-      ]);
-      setListings(listingRows.map(toListingCardModel));
-      setRequests(requestRows.map(toRequestCardModel));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load the marketplace map.');
-    }
-  }, []);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const initialize = async () => {
-      try {
-        const [listingRows, requestRows] = await Promise.all([
-          apiClient.getListings(),
-          apiClient.getRequests(),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setListings(listingRows.map(toListingCardModel));
-        setRequests(requestRows.map(toRequestCardModel));
-        setError(null);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Unable to load the marketplace map.');
-        }
-      }
-    };
-
-    void initialize();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadData]);
-
   React.useEffect(() => {
     const handleResize = () => {
       setIsLargeScreen(window.innerWidth >= 768);
@@ -102,7 +150,6 @@ export default function BrowseMapPage() {
     };
 
     handleResize();
-    // Initial check with a tiny delay to allow fonts & layout to settle
     const timer = setTimeout(() => {
       handleResize();
     }, 100);
@@ -132,26 +179,12 @@ export default function BrowseMapPage() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleClaim = async (id: string) => {
-    try {
-      await apiClient.claimListing(id);
-      window.dispatchEvent(new CustomEvent('post-created', { detail: 'Listing claimed.' }));
-      await loadData();
-      setSelectedItem(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to claim this listing.');
-    }
+  const handleClaim = (id: string) => {
+    claimMutation.mutate(id);
   };
 
-  const handleFulfill = async (id: string) => {
-    try {
-      await apiClient.fulfillRequest(id);
-      window.dispatchEvent(new CustomEvent('post-created', { detail: 'Request fulfilled.' }));
-      await loadData();
-      setSelectedItem(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to fulfill this request.');
-    }
+  const handleFulfill = (id: string) => {
+    fulfillMutation.mutate(id);
   };
 
   const renderHeaderFilters = () => {
@@ -276,22 +309,28 @@ export default function BrowseMapPage() {
           {isLargeScreen && renderHeaderFilters()}
 
           <div className="flex-1 space-y-4 overflow-y-auto bg-[#0A0A0A] p-4 pb-24 scrollbar-none md:pb-6">
-            {error && (
+            {displayError && (
               <div className="rounded-xl border border-[#E05656]/30 bg-[#7A1010]/20 px-4 py-3 text-sm text-[#FFB4AB]">
-                {error}
+                {displayError}
               </div>
             )}
 
             {activeTab === 'listings'
               ? (currentListings.length > 0 ? currentListings.map((listing) => (
-                  <div key={listing.id} onClick={() => setSelectedItem(listing)} className="cursor-pointer">
-                    <ListingCard listing={listing} onClaim={handleClaim} />
-                  </div>
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    onClaim={handleClaim}
+                    onClick={() => setSelectedItem(listing)}
+                  />
                 )) : <div className="py-12 text-center text-xs text-[#525252]">No matching listings on the map.</div>)
               : (currentRequests.length > 0 ? currentRequests.map((request) => (
-                  <div key={request.id} onClick={() => setSelectedItem(request)} className="cursor-pointer">
-                    <RequestCard request={request} onFulfill={handleFulfill} />
-                  </div>
+                  <RequestCard
+                    key={request.id}
+                    request={request}
+                    onFulfill={handleFulfill}
+                    onClick={() => setSelectedItem(request)}
+                  />
                 )) : <div className="py-12 text-center text-xs text-[#525252]">No matching appeals on the map.</div>)}
           </div>
         </section>

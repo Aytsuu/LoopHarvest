@@ -14,12 +14,13 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { toListingCardModel, toRequestCardModel, toUserStats } from '@/lib/api/mappers';
-import type { Listing, RequestItem, UserStats } from '@/lib/api/types';
+import type { ApiListing, ApiRequest, UserStats } from '@/lib/api/types';
 import { createClient } from '@/lib/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Import newly extracted sub-components
 import MyProfileStats from '@/components/settings/my-profile-stats';
-import Account, { type GeolocationPermissionState } from '@/components/settings/account';
+import Account from '@/components/settings/account';
 import Notifications from '@/components/settings/notifications';
 import Appearance from '@/components/settings/appearance';
 import SDG from '@/components/settings/sdg';
@@ -42,15 +43,6 @@ function formatJoinedLabel(value: string | null | undefined) {
   return `Joined ${parsed.toLocaleString('en-US', { month: 'short', year: 'numeric' })}`;
 }
 
-function splitLocation(value: string) {
-  const [cityPart = '', countryPart = ''] = value.split(',', 2);
-
-  return {
-    city: cityPart.trim() || null,
-    country: countryPart.trim() || null,
-  };
-}
-
 function extractAvatarSeed(avatarUrl: string | null | undefined) {
   if (!avatarUrl || !avatarUrl.includes('seed=')) {
     return null;
@@ -59,314 +51,168 @@ function extractAvatarSeed(avatarUrl: string | null | undefined) {
   return avatarUrl.split('seed=')[1]?.split('&')[0] ?? null;
 }
 
-async function getBrowserGeolocationPermission(): Promise<GeolocationPermissionState | null> {
-  if (typeof window === 'undefined' || !navigator.permissions?.query) {
-    return null;
-  }
-
-  try {
-    const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
-    return permissionStatus.state as GeolocationPermissionState;
-  } catch {
-    return null;
-  }
-}
-
-async function reverseGeocodeLocation(latitude: number, longitude: number) {
-  const response = await fetch(`/api/location/reverse?lat=${latitude}&lon=${longitude}`, {
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    throw new Error('Unable to resolve your current region.');
-  }
-
-  const payload = (await response.json()) as {
-    location?: string;
-    region?: string | null;
-    country?: string | null;
-  };
-
-  if (!payload.location) {
-    throw new Error('Unable to resolve your current region.');
-  }
-
-  return payload.location;
-}
-
 export default function ProfilePage() {
-  // Stats and Active Listing States (from original profile page)
-  const [stats, setStats] = React.useState<UserStats>({
-    kgDiverted: 0,
-    co2Saved: 0,
-    waterSaved: 0,
-    listingsPosted: 0,
-    requestsFulfilled: 0,
-    loopPoints: 0,
-  });
-  const [listings, setListings] = React.useState<Listing[]>([]);
-  const [requests, setRequests] = React.useState<RequestItem[]>([]);
-
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<'listings' | 'requests'>('listings');
 
+  // Form hydration state indicator
+  const [isHydrated, setIsHydrated] = React.useState(false);
+
   // Settings Forms & Inputs States
-  // 1. Account details Form
   const [displayName, setDisplayName] = React.useState('');
   const [email, setEmail] = React.useState('');
-  const [location, setLocation] = React.useState('');
+  const [city, setCity] = React.useState('');
+  const [stateProv, setStateProv] = React.useState('');
+  const [postalCode, setPostalCode] = React.useState('');
+  const [country, setCountry] = React.useState('');
   const [bio, setBio] = React.useState('');
   const [avatarSeed, setAvatarSeed] = React.useState('CurrentUser');
-  const [sessionUserId, setSessionUserId] = React.useState<string | null>(null);
-  const [sessionEmail, setSessionEmail] = React.useState('');
-  const [joinedLabel, setJoinedLabel] = React.useState('Joined recently');
-  const [locationPermission, setLocationPermission] = React.useState<GeolocationPermissionState>('idle');
-  const [locationPrompt, setLocationPrompt] = React.useState<string | null>(null);
-  const [isResolvingLocation, setIsResolvingLocation] = React.useState(false);
-  const [isManualLocation, setIsManualLocation] = React.useState(false);
-  const [showTroubleshooting, setShowTroubleshooting] = React.useState(false);
 
-  // Refreshes listings / request stats
-  const refreshData = React.useCallback(async () => {
-    const supabase = createClient();
-
-    try {
-      const {
-        data: { user: sessionUser },
-      } = await supabase.auth.getUser();
+  // Queries
+  const { data: user } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      const dbUser = await apiClient.getCurrentUser();
+      const supabase = createClient();
+      const { data: { user: sessionUser } } = await supabase.auth.getUser();
       const metadata = sessionUser?.user_metadata ?? {};
-      const sessionDisplayName =
-        (typeof metadata.display_name === 'string' && metadata.display_name.trim()) ||
-        (typeof metadata.full_name === 'string' && metadata.full_name.trim()) ||
-        null;
-      const resolvedEmail = sessionUser?.email ?? '';
-      const resolvedAvatarSeed =
-        (typeof metadata.avatar_seed === 'string' && metadata.avatar_seed.trim()) ||
-        extractAvatarSeed(typeof metadata.avatar_url === 'string' ? metadata.avatar_url : null) ||
-        sessionUser?.id ||
-        'CurrentUser';
-      const sessionLocation =
-        (typeof metadata.city === 'string' && metadata.city.trim() && typeof metadata.country === 'string' && metadata.country.trim()
-          ? `${metadata.city.trim()}, ${metadata.country.trim()}`
-          : (typeof metadata.city === 'string' && metadata.city.trim()) ||
-            (typeof metadata.country === 'string' && metadata.country.trim()) ||
-            '');
+      
+      return {
+        ...dbUser,
+        bio: typeof metadata.bio === 'string' ? metadata.bio : '',
+        stateProv: (typeof metadata.state_region === 'string' && metadata.state_region.trim()) || '',
+        postalCode: (typeof metadata.postal_code === 'string' && metadata.postal_code.trim()) || '',
+        createdAt: sessionUser?.created_at ?? null,
+      };
+    },
+  });
 
-      setSessionUserId(sessionUser?.id ?? null);
-      setSessionEmail(resolvedEmail);
-      setDisplayName(sessionDisplayName || (resolvedEmail ? resolvedEmail.split('@')[0] : 'LoopHarvest User'));
-      setEmail(resolvedEmail);
-      setLocation((currentValue) => currentValue || sessionLocation);
-      setBio(typeof metadata.bio === 'string' ? metadata.bio : '');
-      setAvatarSeed(resolvedAvatarSeed);
-      setJoinedLabel(formatJoinedLabel(sessionUser?.created_at));
-    } catch (err) {
-      console.error('Failed to hydrate settings session data:', err);
+  const { data: listingRows = [] } = useQuery({
+    queryKey: ['listings'],
+    queryFn: apiClient.getListings,
+  });
+
+  const { data: requestRows = [] } = useQuery({
+    queryKey: ['requests'],
+    queryFn: apiClient.getRequests,
+  });
+
+  const { data: impactSummary } = useQuery({
+    queryKey: ['impact'],
+    queryFn: apiClient.getImpactSummary,
+  });
+
+  // Dynamically compute user's specific listings
+  const listings = React.useMemo(() => {
+    if (!user || !listingRows) return [];
+    const mapped = listingRows.map(toListingCardModel);
+    return mapped.filter((listing) =>
+      listingRows.some((row) => row.id === listing.id && row.donor_id === user.id)
+    );
+  }, [user, listingRows]);
+
+  // Dynamically compute user's specific requests
+  const requests = React.useMemo(() => {
+    if (!user || !requestRows) return [];
+    const mapped = requestRows.map(toRequestCardModel);
+    return mapped.filter((request) =>
+      requestRows.some((row) => row.id === request.id && row.requester_id === user.id)
+    );
+  }, [user, requestRows]);
+
+  // Dynamically calculate user's specific impact stats
+  const stats = React.useMemo<UserStats>(() => {
+    if (!impactSummary) {
+      return {
+        kgDiverted: 0,
+        co2Saved: 0,
+        waterSaved: 0,
+        listingsPosted: 0,
+        requestsFulfilled: 0,
+        loopPoints: 0,
+      };
     }
+    const listingsPosted = listings.length;
+    const requestsFulfilled = requests.filter(r => r.status !== 'open').length;
+    return toUserStats(impactSummary, listingsPosted, requestsFulfilled);
+  }, [impactSummary, listings, requests]);
 
-    try {
-      const [user, listingRows, requestRows, impact] = await Promise.all([
-        apiClient.getCurrentUser(),
-        apiClient.getListings(),
-        apiClient.getRequests(),
-        apiClient.getImpactSummary(),
-      ]);
-
-      setSessionUserId(user.id);
-      setDisplayName(user.display_name || user.email.split('@')[0] || 'LoopHarvest User');
-      setEmail(user.email);
-      setLocation((currentValue) => {
-        if (currentValue) {
-          return currentValue;
-        }
-
-        if (user.city && user.country) {
-          return `${user.city}, ${user.country}`;
-        }
-
-        return user.city || user.country || '';
-      });
-      setAvatarSeed(extractAvatarSeed(user.avatar_url) || user.id || 'CurrentUser');
-
-      const mappedListings = listingRows.map(toListingCardModel);
-      const mappedRequests = requestRows.map(toRequestCardModel);
-
-      const userListings = mappedListings.filter((listing) =>
-        listingRows.some((row) => row.id === listing.id && row.donor_id === user.id),
-      );
-      const userRequests = mappedRequests.filter((request) =>
-        requestRows.some((row) => row.id === request.id && row.requester_id === user.id),
-      );
-
-      setListings(userListings);
-      setRequests(userRequests);
-
-      // Dynamically calculate user's specific impact stats
-      const listingsPosted = userListings.length;
-      const requestsFulfilled = userRequests.filter(r => r.status !== 'open').length;
-      setStats(toUserStats(impact, listingsPosted, requestsFulfilled));
-    } catch (err) {
-      console.error('Failed to refresh settings API data:', err);
-    }
-  }, []);
-
+  // Hydrate settings form states safely from active query cache
   React.useEffect(() => {
+    if (!user || isHydrated) return;
+
     const timer = setTimeout(() => {
-      void refreshData();
+      setDisplayName(user.display_name || user.email.split('@')[0] || 'LoopHarvest User');
+      setEmail(user.email || '');
+      setCity(user.city || '');
+      setCountry(user.country || '');
+      setStateProv(user.stateProv || '');
+      setPostalCode(user.postalCode || '');
+      setBio(user.bio || '');
+      setAvatarSeed(extractAvatarSeed(user.avatar_url) || user.id || 'CurrentUser');
+      setIsHydrated(true);
     }, 0);
+
     return () => clearTimeout(timer);
-  }, [refreshData]);
+  }, [user, isHydrated]);
 
-  const requestBrowserLocation = React.useCallback(async () => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      setLocationPermission('unsupported');
-      setLocationPrompt('Location is unavailable in this browser. Enable it for a better local experience.');
-      return;
-    }
+  // Mutations
+  const claimMutation = useMutation({
+    mutationFn: (id: string) => apiClient.claimListing(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['listings'] });
+      const previousListings = queryClient.getQueryData<ApiListing[]>(['listings']);
 
-    setIsResolvingLocation(true);
-    setLocationPrompt(null);
-
-    try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: false,
-          timeout: 10000,
-          maximumAge: 300000,
-        });
-      });
-
-      const resolvedLocation = await reverseGeocodeLocation(
-        position.coords.latitude,
-        position.coords.longitude,
+      queryClient.setQueryData<ApiListing[]>(['listings'], (old) =>
+        old ? old.map((l) => (l.id === id ? { ...l, status: 'claimed' } : l)) : []
       );
 
-      setLocation(resolvedLocation);
-      setLocationPermission('granted');
-      setIsManualLocation(false);
-      setLocationPrompt(null);
-    } catch (error) {
-      const permissionError = error as GeolocationPositionError | Error;
-
-      if ('code' in permissionError && permissionError.code === 1) {
-        const browserPermission = await getBrowserGeolocationPermission();
-        if (browserPermission === 'granted') {
-          setLocationPermission('granted');
-          setShowTroubleshooting(true);
-          setLocationPrompt(
-            'Location access is allowed, but your device did not return coordinates. Check OS location services, then try again.',
-          );
-        } else {
-          setLocationPermission('denied');
-          setShowTroubleshooting(true);
-          setLocationPrompt('Turn on browser location access for LoopHarvest to improve local discovery and pickup relevance.');
-        }
-      } else {
-        setShowTroubleshooting(true);
-        setLocationPrompt(
-          permissionError instanceof Error
-            ? permissionError.message
-            : 'Unable to detect your current region.',
-        );
+      triggerNotification('Listing claimed!');
+      return { previousListings };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousListings) {
+        queryClient.setQueryData(['listings'], context.previousListings);
       }
-    } finally {
-      setIsResolvingLocation(false);
-    }
-  }, []);
+      triggerNotification(err instanceof Error ? err.message : 'Unable to claim listing.');
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['impact'] });
+    },
+  });
 
-  React.useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+  const fulfillMutation = useMutation({
+    mutationFn: (id: string) => apiClient.fulfillRequest(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['requests'] });
+      const previousRequests = queryClient.getQueryData<ApiRequest[]>(['requests']);
 
-    if (!navigator.geolocation) {
-      setTimeout(() => {
-        setLocationPermission('unsupported');
-        setLocationPrompt('Location is unavailable in this browser. Enable it for a better local experience.');
-      }, 0);
-      return;
-    }
+      queryClient.setQueryData<ApiRequest[]>(['requests'], (old) =>
+        old ? old.map((r) => (r.id === id ? { ...r, status: 'fulfilled' } : r)) : []
+      );
 
-    if (!navigator.permissions?.query) {
-      setTimeout(() => {
-        setLocationPermission('prompt');
-        setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
-      }, 0);
-      return;
-    }
-
-    let cancelled = false;
-    let permissionStatus: PermissionStatus | null = null;
-
-    const syncPermission = async () => {
-      try {
-        permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
-        if (cancelled) {
-          return;
-        }
-
-        const nextState = permissionStatus.state as GeolocationPermissionState;
-        setLocationPermission(nextState);
-
-        if (nextState === 'granted') {
-          setIsManualLocation(false);
-          void requestBrowserLocation();
-        } else if (nextState === 'denied') {
-          setLocationPrompt('Turn on browser location access for LoopHarvest to improve local discovery and pickup relevance.');
-          setShowTroubleshooting(true);
-        } else {
-          setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
-        }
-
-        permissionStatus.onchange = () => {
-          const changedState = permissionStatus?.state as GeolocationPermissionState;
-          setLocationPermission(changedState);
-
-          if (changedState === 'granted') {
-            setIsManualLocation(false);
-            void requestBrowserLocation();
-          } else if (changedState === 'denied') {
-            setLocationPrompt('Turn on browser location access for LoopHarvest to improve local discovery and pickup relevance.');
-            setShowTroubleshooting(true);
-          } else {
-            setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
-          }
-        };
-      } catch {
-        if (!cancelled) {
-          setLocationPermission('prompt');
-          setLocationPrompt('Allow location access to auto-detect your region for a better local experience.');
-        }
+      triggerNotification('Request fulfilled!');
+      return { previousRequests };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousRequests) {
+        queryClient.setQueryData(['requests'], context.previousRequests);
       }
-    };
-
-    void syncPermission();
-
-    return () => {
-      cancelled = true;
-      if (permissionStatus) {
-        permissionStatus.onchange = null;
-      }
-    };
-  }, [requestBrowserLocation]);
+      triggerNotification(err instanceof Error ? err.message : 'Unable to fulfill request.');
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['impact'] });
+    },
+  });
 
   const handleClaim = async (id: string) => {
-    try {
-      await apiClient.claimListing(id);
-      await refreshData();
-      triggerNotification('Listing claimed!');
-    } catch (err) {
-      triggerNotification(err instanceof Error ? err.message : 'Unable to claim listing.');
-    }
+    claimMutation.mutate(id);
   };
 
   const handleFulfill = async (id: string) => {
-    try {
-      await apiClient.fulfillRequest(id);
-      await refreshData();
-      triggerNotification('Request fulfilled!');
-    } catch (err) {
-      triggerNotification(err instanceof Error ? err.message : 'Unable to fulfill request.');
-    }
+    fulfillMutation.mutate(id);
   };
 
   // Nav Settings Sidebar States
@@ -444,16 +290,18 @@ export default function ProfilePage() {
     window.dispatchEvent(event);
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
+  const saveProfileMutation = useMutation({
+    mutationFn: async () => {
       const supabase = createClient();
       const trimmedDisplayName = displayName.trim();
       const trimmedEmail = email.trim();
       const trimmedBio = bio.trim();
-      const trimmedSeed = avatarSeed.trim() || sessionUserId || 'CurrentUser';
-      const { city, country } = splitLocation(location);
+      const trimmedSeed = avatarSeed.trim() || user?.id || 'CurrentUser';
+      const trimmedCity = city.trim();
+      const trimmedCountry = country.trim();
+      const trimmedState = stateProv.trim();
+      const trimmedPostal = postalCode.trim();
+
       const updatePayload: {
         email?: string;
         data: {
@@ -462,6 +310,8 @@ export default function ProfilePage() {
           bio: string;
           city: string | null;
           country: string | null;
+          state_region: string | null;
+          postal_code: string | null;
           display_name: string;
         };
       } = {
@@ -469,13 +319,15 @@ export default function ProfilePage() {
           display_name: trimmedDisplayName || trimmedEmail.split('@')[0] || 'LoopHarvest User',
           avatar_seed: trimmedSeed,
           avatar_url: buildAvatarUrl(trimmedSeed),
-          city,
-          country,
+          city: trimmedCity || null,
+          country: trimmedCountry || null,
+          state_region: trimmedState || null,
+          postal_code: trimmedPostal || null,
           bio: trimmedBio,
         },
       };
 
-      if (trimmedEmail && trimmedEmail !== sessionEmail) {
+      if (trimmedEmail && trimmedEmail !== user?.email) {
         updatePayload.email = trimmedEmail;
       }
 
@@ -483,16 +335,24 @@ export default function ProfilePage() {
       if (error) {
         throw error;
       }
-
-      await refreshData();
+      return updatePayload;
+    },
+    onSuccess: (payload) => {
+      void queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       triggerNotification(
-        updatePayload.email
+        payload.email
           ? 'Account profile saved. Check your email if Supabase requires reconfirmation.'
-          : 'Account profile settings saved successfully!',
+          : 'Account profile settings saved successfully!'
       );
-    } catch (err) {
+    },
+    onError: (err) => {
       triggerNotification(err instanceof Error ? err.message : 'Unable to save account profile settings.');
-    }
+    },
+  });
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    saveProfileMutation.mutate();
   };
 
   const handleSaveNotifications = (e: React.FormEvent) => {
@@ -636,7 +496,8 @@ export default function ProfilePage() {
   const renderActiveSectionContent = (id: string) => {
     switch (id) {
       // 1. ORIGINAL PROFILE & STATISTICS VIEW
-      case 'profile-stats':
+      case 'profile-stats': {
+        const computedLocation = [city, stateProv, country].filter(Boolean).join(', ') || 'No location specified';
         return (
           <MyProfileStats
             stats={stats}
@@ -647,13 +508,14 @@ export default function ProfilePage() {
             displayName={displayName}
             avatarSeed={avatarSeed}
             isPremium={isPremium}
-            joinedLabel={joinedLabel}
-            location={location}
+            joinedLabel={formatJoinedLabel(user?.createdAt)}
+            location={computedLocation}
             bio={bio}
             handleClaim={handleClaim}
             handleFulfill={handleFulfill}
           />
         );
+      }
 
       // 2. ACCOUNT PROFILE DETAILS EDIT
       case 'account-details':
@@ -663,20 +525,18 @@ export default function ProfilePage() {
             setDisplayName={setDisplayName}
             email={email}
             setEmail={setEmail}
-            location={location}
-            setLocation={setLocation}
+            city={city}
+            setCity={setCity}
+            stateProv={stateProv}
+            setStateProv={setStateProv}
+            postalCode={postalCode}
+            setPostalCode={setPostalCode}
+            country={country}
+            setCountry={setCountry}
             bio={bio}
             setBio={setBio}
             avatarSeed={avatarSeed}
             setAvatarSeed={setAvatarSeed}
-            locationPermission={locationPermission}
-            locationPrompt={locationPrompt}
-            isResolvingLocation={isResolvingLocation}
-            isManualLocation={isManualLocation}
-            setIsManualLocation={setIsManualLocation}
-            showTroubleshooting={showTroubleshooting}
-            setShowTroubleshooting={setShowTroubleshooting}
-            requestBrowserLocation={requestBrowserLocation}
             handleSaveProfile={handleSaveProfile}
           />
         );

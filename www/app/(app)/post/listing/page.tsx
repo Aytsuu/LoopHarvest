@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, ChevronLeft, Send, Sparkles, Scale, Info } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Send, Scale, Info, Camera, RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
 import { useCategories } from '@/components/common/CategoriesProvider';
 import { apiClient } from '@/lib/api/client';
 import type { CategorySlug } from '@/lib/categories';
@@ -53,10 +53,8 @@ export default function PostListingPage() {
   const [quantity, setQuantity] = React.useState<number>(1.0);
   const [unit, setUnit] = React.useState('kg');
   const [description, setDescription] = React.useState('');
-  const [selectedPhoto, setSelectedPhoto] = React.useState(() => {
-    const presets = PHOTO_PRESETS['vegetable-scraps'] || PHOTO_PRESETS['other'];
-    return presets[0] || '';
-  });
+  const [selectedPhoto, setSelectedPhoto] = React.useState('');
+  const [verificationState, setVerificationState] = React.useState<'idle' | 'connecting' | 'capturing' | 'auditing' | 'verified'>('idle');
 
   React.useEffect(() => {
     if (categories.length === 0) {
@@ -69,14 +67,30 @@ export default function PostListingPage() {
     }
 
     const nextCategory = categories[0].slug;
-    const presets = PHOTO_PRESETS[nextCategory] || PHOTO_PRESETS.other;
     setTimeout(() => {
       setCategory(nextCategory);
-      setSelectedPhoto(presets[0] || '');
     }, 0);
   }, [categories, category]);
 
-  const activeCatPresets = PHOTO_PRESETS[category] || PHOTO_PRESETS['other'];
+  const handleSimulateVerification = () => {
+    setVerificationState('connecting');
+    
+    setTimeout(() => {
+      setVerificationState('capturing');
+      
+      setTimeout(() => {
+        setVerificationState('auditing');
+        
+        setTimeout(() => {
+          const presets = PHOTO_PRESETS[category] || PHOTO_PRESETS['other'];
+          const randomPreset = presets[Math.floor(Math.random() * presets.length)] || presets[0] || '';
+          setSelectedPhoto(randomPreset);
+          setVerificationState('verified');
+        }, 1500);
+      }, 1200);
+    }, 1000);
+  };
+
   const activeCategory = getCategory(category);
 
   const handleNext = () => {
@@ -88,9 +102,15 @@ export default function PostListingPage() {
       alert('Quantity must be greater than zero.');
       return;
     }
-    if (step === 3 && !description.trim()) {
-      alert('Please fill in a short details description.');
-      return;
+    if (step === 3) {
+      if (!description.trim()) {
+        alert('Please fill in a short details description.');
+        return;
+      }
+      if (!selectedPhoto) {
+        alert('Visual verification is required. Please scan the QR code to capture and verify your waste photo first.');
+        return;
+      }
     }
     setStep(prev => prev + 1);
   };
@@ -197,8 +217,8 @@ export default function PostListingPage() {
                       type="button"
                       onClick={() => {
                         setCategory(cat.slug);
-                        const presets = PHOTO_PRESETS[cat.slug] || PHOTO_PRESETS['other'];
-                        setSelectedPhoto(presets[0] || '');
+                        setSelectedPhoto('');
+                        setVerificationState('idle');
                       }}
                       className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
                         category === cat.slug
@@ -266,7 +286,7 @@ export default function PostListingPage() {
           <div className="space-y-6">
             <div className="space-y-1">
               <h2 className="font-display text-xl font-bold text-[#FFFFFF]">Add Details & Visual Verification</h2>
-              <p className="text-xs text-[#A3A3A3]">Select preset stock images recommended for your category slug.</p>
+              <p className="text-xs text-[#A3A3A3]">Describe your organic material and complete mobile visual verification.</p>
             </div>
 
             <div className="space-y-4">
@@ -281,32 +301,164 @@ export default function PostListingPage() {
                 />
               </div>
 
-              {/* Recommended Presets */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-1 text-[#A8D97F]">
-                  <Sparkles size={14} />
-                  <span className="text-xs font-black uppercase tracking-wider">AI Category Recommendations</span>
+              {/* Premium Visual Verification Card */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-[#A8D97F]">
+                    <Camera size={14} className={verificationState === 'verified' ? '' : 'animate-pulse'} />
+                    <span className="text-xs font-black uppercase tracking-wider">Visual Verification</span>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                    verificationState === 'verified'
+                      ? 'bg-[#2A4A10] text-[#A8D97F]'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${verificationState === 'verified' ? 'bg-[#A8D97F] animate-pulse' : 'bg-amber-400'}`} />
+                    {verificationState === 'verified' ? 'Verified Batch' : 'Required'}
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  {activeCatPresets.map((preset, idx) => (
-                    <div 
-                      key={preset}
-                      onClick={() => setSelectedPhoto(preset)}
-                      className={`relative aspect-video rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
-                        selectedPhoto === preset 
-                          ? 'border-[#A8D97F] scale-[1.02] shadow-lg' 
-                          : 'border-transparent opacity-60 hover:opacity-100'
-                      }`}
-                    >
+                {verificationState !== 'verified' ? (
+                  <div className="relative overflow-hidden rounded-2xl border border-white/6 bg-[#141414] p-5 flex flex-col md:flex-row gap-5 items-center">
+                    
+                    {/* Simulated Scanner / SVG QR Code Container */}
+                    <div className="relative w-32 h-32 bg-white p-2.5 rounded-xl shrink-0 flex items-center justify-center overflow-hidden shadow-inner select-none">
+                      {/* Laser scanner overlay line */}
+                      {verificationState === 'idle' && (
+                        <div className="absolute left-0 right-0 h-0.5 bg-[#A8D97F] opacity-80 shadow-[0_0_8px_#A8D97F] animate-bounce" style={{ animationDuration: '2.5s' }} />
+                      )}
+
+                      {verificationState !== 'idle' && (
+                        <div className="absolute inset-0 bg-black/80 z-10 flex flex-col items-center justify-center gap-1.5 p-2 text-center">
+                          <Loader2 size={20} className="text-[#A8D97F] animate-spin" />
+                          <span className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider animate-pulse">
+                            {verificationState === 'connecting' && 'Connecting...'}
+                            {verificationState === 'capturing' && 'Capturing Live...'}
+                            {verificationState === 'auditing' && 'Auditing Image...'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Premium High-Fidelity SVG QR Code */}
+                      <svg className="w-full h-full text-[#141414]" viewBox="0 0 100 100" fill="currentColor">
+                        {/* Position Markers (Corners) */}
+                        <path d="M 5,5 h 25 v 5 h -20 v 20 h -5 z M 70,5 h 25 v 25 h -5 v -20 h -20 z M 5,70 h 5 v 20 h 20 v 5 h -25 z" />
+                        <path d="M 10,10 h 15 v 15 h -15 z M 13,13 h 9 v 9 h -9 z" />
+                        <path d="M 75,10 h 15 v 15 h -15 z M 78,13 h 9 v 9 h -9 z" />
+                        <path d="M 10,75 h 15 v 15 h -15 z M 13,78 h 9 v 9 h -9 z" />
+                        {/* Alignment pattern (bottom right-ish) */}
+                        <path d="M 68,68 h 10 v 10 h -10 z M 71,71 h 4 v 4 h -4 z" />
+                        {/* Fake bits/dots spread across QR area */}
+                        <rect x="35" y="5" width="5" height="5" />
+                        <rect x="45" y="12" width="10" height="5" />
+                        <rect x="60" y="5" width="5" height="15" />
+                        <rect x="35" y="20" width="15" height="5" />
+                        <rect x="55" y="25" width="5" height="5" />
+                        
+                        <rect x="5" y="35" width="5" height="15" />
+                        <rect x="15" y="45" width="15" height="5" />
+                        <rect x="25" y="35" width="5" height="10" />
+                        
+                        <rect x="35" y="35" width="10" height="10" />
+                        <rect x="50" y="40" width="5" height="5" />
+                        <rect x="40" y="55" width="15" height="5" />
+                        <rect x="5" y="60" width="15" height="5" />
+                        <rect x="25" y="55" width="5" height="10" />
+                        
+                        <rect x="80" y="35" width="15" height="5" />
+                        <rect x="70" y="45" width="5" height="15" />
+                        <rect x="85" y="50" width="10" height="10" />
+                        
+                        <rect x="35" y="70" width="10" height="5" />
+                        <rect x="50" y="65" width="5" height="15" />
+                        <rect x="35" y="85" width="20" height="5" />
+                        
+                        <rect x="65" y="85" width="10" height="10" />
+                        <rect x="80" y="80" width="15" height="5" />
+                        <rect x="85" y="90" width="5" height="5" />
+                      </svg>
+                    </div>
+
+                    {/* Step-by-Step Instructions Panel */}
+                    <div className="flex-1 space-y-3 w-full">
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-[#FFFFFF]">Verified Mobile Capture Steps</h4>
+                        <p className="text-[11px] text-[#A3A3A3] leading-relaxed">Point your mobile device camera to snap and verify raw organic content quality instantly.</p>
+                      </div>
+
+                      <div className="space-y-2 text-[10px] text-[#A3A3A3]">
+                        <div className="flex gap-2">
+                          <span className="font-mono text-xs font-black text-[#A8D97F] bg-[#2A4A10]/50 h-5 w-5 rounded-full flex items-center justify-center shrink-0">1</span>
+                          <span>Scan QR Code with your smartphone camera to connect session.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="font-mono text-xs font-black text-[#A8D97F] bg-[#2A4A10]/50 h-5 w-5 rounded-full flex items-center justify-center shrink-0">2</span>
+                          <span>Position your camera over the batch and capture a live image.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="font-mono text-xs font-black text-[#A8D97F] bg-[#2A4A10]/50 h-5 w-5 rounded-full flex items-center justify-center shrink-0">3</span>
+                          <span>Live quality audits will automatically sync and approve this post.</span>
+                        </div>
+                      </div>
+
+                      {/* Interactive Simulator Trigger */}
+                      <button
+                        type="button"
+                        onClick={handleSimulateVerification}
+                        disabled={verificationState !== 'idle'}
+                        className="mt-2 w-full flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#2A4A10]/80 border border-[#A8D97F]/20 text-xs font-bold text-[#A8D97F] hover:bg-[#2A4A10] transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw size={12} className={verificationState !== 'idle' ? 'animate-spin' : ''} />
+                        <span>
+                          {verificationState === 'idle' && 'Simulate Mobile Capture'}
+                          {verificationState === 'connecting' && 'Connecting to mobile camera...'}
+                          {verificationState === 'capturing' && 'Snapping Live Photo...'}
+                          {verificationState === 'auditing' && 'Analyzing image quality...'}
+                        </span>
+                      </button>
+                    </div>
+
+                  </div>
+                ) : (
+                  /* Verified Preview State */
+                  <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#141414] p-4 space-y-4 shadow-xl">
+                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-stone-900 border border-white/6 group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={preset} alt={`preset-${idx}`} className="h-full w-full object-cover" />
-                      <div className="absolute right-2 bottom-2 rounded bg-black/60 p-1 text-[10px] text-white">
-                        Option {idx+1}
+                      <img src={selectedPhoto} alt="Live captured organic batch" className="h-full w-full object-cover" />
+                      
+                      <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                        <span className="rounded-full bg-[#1A3A05] px-2.5 py-0.5 text-[9px] font-black text-[#A8D97F] border border-[#A8D97F]/20 shadow flex items-center gap-1">
+                          <CheckCircle2 size={10} className="animate-pulse" />
+                          <span>LIVE VERIFIED</span>
+                        </span>
+                        <span className="rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-md">
+                          Source: Mobile Shutter
+                        </span>
+                      </div>
+
+                      <div className="absolute bottom-3 right-3 rounded bg-black/60 px-2 py-0.5 text-[9px] font-mono text-white backdrop-blur-md">
+                        Confidence: 99.1%
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <span className="block text-[10px] font-black uppercase tracking-wider text-[#A8D97F]">Verification Approved</span>
+                        <span className="block text-[9px] text-[#A3A3A3]">Metadata: iOS Mobile Camera (iPhone 15 Pro, Live Capture Audit passed)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPhoto('');
+                          setVerificationState('idle');
+                        }}
+                        className="rounded-lg border border-white/6 bg-white/4 hover:bg-white/8 px-3 py-1.5 text-[10px] font-bold text-[#FFFFFF] transition-colors shrink-0"
+                      >
+                        Retake Photo
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

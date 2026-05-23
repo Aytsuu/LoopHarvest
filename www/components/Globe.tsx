@@ -1,11 +1,12 @@
 'use client';
-
+ 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import Map, { Marker, MapRef } from 'react-map-gl/mapbox';
 import { Leaf, HelpCircle, X, Clock } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import mapboxgl from 'mapbox-gl';
-
+ 
 import type { Listing, RequestItem } from '@/lib/api/types';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -71,6 +72,7 @@ export default function Globe({
 }: GlobeProps) {
   const mapRef = React.useRef<MapRef>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const projection = controlledProjection || 'globe';
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
   const [selectedPin, setSelectedPin] = React.useState<GlobePin | null>(null);
@@ -250,7 +252,7 @@ export default function Globe({
   }
 
   return (
-    <div ref={containerRef} className="relative h-full w-full bg-[#030602] font-sans">
+    <div ref={containerRef} className="relative h-full w-full bg-[#030602]">
       <Map
         ref={mapRef}
         mapboxAccessToken={token}
@@ -385,7 +387,7 @@ export default function Globe({
               <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-[#A3A3A3]">
                 {selectedPin.type === 'listing' ? 'Waste Donation Loop' : 'Needs Fulfiller / Appeal'}
               </p>
-
+ 
               <div className="mt-5 w-full space-y-3.5 text-left">
                 {/* Details card wrapper */}
                 <div className="rounded-2xl bg-[#141414]/60 border border-white/5 p-4 space-y-1.5 shadow-inner">
@@ -418,25 +420,34 @@ export default function Globe({
                 </div>
               </div>
 
-              {selectedPin.status === 'open' ? (
+              <div className="mt-6 w-full space-y-2">
+                {selectedPin.status === 'open' ? (
+                  <button 
+                    onClick={handleAction}
+                    className={`w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg transition duration-200 active:scale-95 ${
+                      selectedPin.type === 'listing' 
+                        ? 'bg-[#A8D97F] hover:bg-[#92cc63] text-[#1A3A05]' 
+                        : 'bg-[#E8A838] hover:bg-[#d89225] text-[#3D2800]'
+                    }`}
+                  >
+                    {selectedPin.type === 'listing' ? 'Reserve Waste Item' : 'Offer Help / Fulfill'}
+                  </button>
+                ) : (
+                  <button 
+                    disabled
+                    className="w-full rounded-xl py-3.5 text-xs font-medium tracking-wider bg-[#141414]/50 text-white/30 border border-white/5 cursor-not-allowed"
+                  >
+                    Loop Solved / Claimed
+                  </button>
+                )}
+
                 <button 
-                  onClick={handleAction}
-                  className={`mt-6 w-full rounded-xl py-3.5 text-xs font-black uppercase tracking-wider shadow-lg transition duration-200 active:scale-95 ${
-                    selectedPin.type === 'listing' 
-                      ? 'bg-[#A8D97F] hover:bg-[#92cc63] text-[#1A3A05]' 
-                      : 'bg-[#E8A838] hover:bg-[#d89225] text-[#3D2800]'
-                  }`}
+                  onClick={() => router.push(selectedPin.type === 'listing' ? `/listings/${selectedPin.id}` : `/requests/${selectedPin.id}`)}
+                  className="w-full rounded-xl py-3.5 text-xs font-medium tracking-wider border border-white/10 hover:bg-white/5 text-[#FFFFFF] hover:text-[#A8D97F] hover:border-[#A8D97F]/30 transition duration-200 active:scale-95 flex items-center justify-center gap-2"
                 >
-                  {selectedPin.type === 'listing' ? 'Reserve Waste Item' : 'Offer Help / Fulfill'}
+                  <span>View Full Details</span>
                 </button>
-              ) : (
-                <button 
-                  disabled
-                  className="mt-6 w-full rounded-xl py-3.5 text-xs font-black uppercase tracking-wider bg-[#141414] text-[#525252] border border-white/5 cursor-not-allowed"
-                >
-                  Loop Solved / Claimed
-                </button>
-              )}
+              </div>
             </div>
           </div>
         </div>

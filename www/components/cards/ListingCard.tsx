@@ -9,14 +9,21 @@ import CategoryChip from '../common/CategoryChip';
 interface ListingCardProps {
   listing: Listing;
   onClaim?: (id: string) => void;
+  onClick?: () => void;
 }
 
-export default function ListingCard({ listing, onClaim }: ListingCardProps) {
+export default function ListingCard({ listing, onClaim, onClick }: ListingCardProps) {
   const router = useRouter();
 
   return (
     <article
-      onClick={() => router.push(`/listings/${listing.id}`)}
+      onClick={() => {
+        if (onClick) {
+          onClick();
+        } else {
+          router.push(`/listings/${listing.id}`);
+        }
+      }}
       className="group relative flex flex-col overflow-hidden rounded-xl border border-white/6 bg-[#141414] text-[#FFFFFF] transition-all duration-250 hover:-translate-y-0.5 hover:bg-[#1B1B1B] hover:shadow-[0_4px_16px_rgba(0,0,0,0.5)] cursor-pointer"
     >
       {/* Photo header (16:9, bleeds) */}

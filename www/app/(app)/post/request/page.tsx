@@ -102,9 +102,9 @@ export default function PostRequestPage() {
               <div 
                 className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                   step === num 
-                    ? 'bg-[#4ECDC4] text-[#003733] scale-110 shadow-lg' 
+                    ? 'bg-[#A8D97F] text-[#1A3A05] scale-110 shadow-lg' 
                     : step > num 
-                      ? 'bg-[#004D48] text-[#4ECDC4]' 
+                      ? 'bg-[#2A4A10] text-[#A8D97F]' 
                       : 'bg-[#1B1B1B] text-[#525252] border border-white/6'
                 }`}
               >
@@ -113,7 +113,7 @@ export default function PostRequestPage() {
               {num < 2 && (
                 <div 
                   className={`h-0.5 flex-1 mx-2 transition-all ${
-                    step > num ? 'bg-[#004D48]' : 'bg-[#1B1B1B]'
+                    step > num ? 'bg-[#2A4A10]' : 'bg-[#1B1B1B]'
                   }`}
                 />
               )}
@@ -141,7 +141,7 @@ export default function PostRequestPage() {
                   placeholder="e.g. Sourdough discards for poultry feed..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#4ECDC4] focus:outline-none transition-all"
+                  className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#A8D97F] focus:outline-none transition-all"
                 />
               </div>
 
@@ -156,7 +156,7 @@ export default function PostRequestPage() {
                       onClick={() => setFrequency(freq)}
                       className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all capitalize ${
                         frequency === freq
-                          ? 'bg-[#004D48] text-[#4ECDC4]'
+                          ? 'bg-[#2A4A10] text-[#A8D97F]'
                           : 'text-[#A3A3A3] hover:text-[#FFFFFF]'
                       }`}
                     >
@@ -177,7 +177,7 @@ export default function PostRequestPage() {
                       onClick={() => setCategory(cat.slug)}
                       className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
                         category === cat.slug
-                          ? 'bg-[#004D48] border-[#4ECDC4] text-[#4ECDC4]'
+                          ? 'bg-[#2A4A10] border-[#A8D97F] text-[#A8D97F]'
                           : 'bg-[#141414] border-white/6 text-[#FFFFFF] hover:border-white/12'
                       }`}
                     >
@@ -204,8 +204,8 @@ export default function PostRequestPage() {
               {/* Range block */}
               <div className="bg-[#141414] p-5 rounded-2xl border border-white/6 space-y-4">
                 <div className="flex justify-center items-center gap-2">
-                  <Scale size={20} className="text-[#4ECDC4]" />
-                  <span className="font-display text-base font-bold text-[#4ECDC4]">Target Range Needed</span>
+                  <Scale size={20} className="text-[#A8D97F]" />
+                  <span className="font-display text-base font-bold text-[#A8D97F]">Target Range Needed</span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -215,7 +215,7 @@ export default function PostRequestPage() {
                       type="number"
                       value={minQuantity}
                       onChange={(e) => setMinQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#FFFFFF] focus:border-[#4ECDC4] focus:outline-none"
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                     />
                   </div>
 
@@ -225,7 +225,7 @@ export default function PostRequestPage() {
                       type="number"
                       value={maxQuantity}
                       onChange={(e) => setMaxQuantity(Math.max(minQuantity, parseInt(e.target.value) || minQuantity))}
-                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#FFFFFF] focus:border-[#4ECDC4] focus:outline-none"
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                     />
                   </div>
 
@@ -234,7 +234,7 @@ export default function PostRequestPage() {
                     <select
                       value={unit}
                       onChange={(e) => setUnit(e.target.value)}
-                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-bold text-xs text-[#FFFFFF] focus:border-[#4ECDC4] focus:outline-none"
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-bold text-xs text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                     >
                       <option value="kg">kg</option>
                       <option value="pieces">pcs</option>
@@ -253,12 +253,12 @@ export default function PostRequestPage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full p-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#4ECDC4] focus:outline-none leading-relaxed resize-none"
+                  className="w-full p-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#A8D97F] focus:outline-none leading-relaxed resize-none"
                 />
               </div>
 
               <div className="flex gap-2 text-[10px] text-[#A3A3A3] leading-relaxed px-1 bg-[#141414]/40 p-3.5 rounded-xl border border-white/6">
-                <Info size={14} className="text-[#4ECDC4] shrink-0 mt-0.5" />
+                <Info size={14} className="text-[#A8D97F] shrink-0 mt-0.5" />
                 <span>You will earn +10 XP immediately upon posting, and an additional +30 XP once a compatible donor coordinates with you.</span>
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function PostRequestPage() {
           {step < 2 ? (
             <button
               onClick={handleNext}
-              className="flex items-center justify-center gap-1 rounded-xl bg-[#4ECDC4] px-4 py-3.5 text-xs font-black text-[#003733] transition hover:brightness-105 active:scale-98 flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1"
             >
               <span>Continue</span>
               <ChevronRight size={16} />
@@ -288,7 +288,7 @@ export default function PostRequestPage() {
           ) : (
             <button
               onClick={handlePublish}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#4ECDC4] px-4 py-3.5 text-xs font-black text-[#003733] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg"
             >
               <span>Publish Appeal</span>
               <Send size={14} />

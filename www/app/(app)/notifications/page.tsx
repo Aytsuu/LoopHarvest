@@ -40,11 +40,11 @@ export default function NotificationsPage() {
       case 'listing_claimed':
         return <CheckCircle2 size={16} className="text-[#E8A838]" />;
       case 'pickup_confirmed':
-        return <Calendar size={16} className="text-[#4ECDC4]" />;
+        return <Calendar size={16} className="text-[#A8D97F]" />;
       case 'match_found':
         return <Inbox size={16} className="text-[#A8D97F]" />;
       case 'review_received':
-        return <MessageSquare size={16} className="text-[#7EF8EF]" />;
+        return <MessageSquare size={16} className="text-[#A8D97F]" />;
       default:
         return <Bell size={16} className="text-[#A3A3A3]" />;
     }
