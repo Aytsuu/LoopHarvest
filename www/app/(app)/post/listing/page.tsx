@@ -2,49 +2,18 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, ChevronLeft, Send, Scale, Info, Camera, RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Send, Scale, Info, Camera, CheckCircle2, Loader2, Upload, Smartphone } from 'lucide-react';
 import { useCategories } from '@/components/common/CategoriesProvider';
 import { apiClient } from '@/lib/api/client';
 import type { CategorySlug } from '@/lib/categories';
-
-const PHOTO_PRESETS: Record<string, string[]> = {
-  'vegetable-scraps': [
-    'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1557844352-761f2565b576?q=80&w=600&auto=format&fit=crop'
-  ],
-  'coffee-grounds': [
-    'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=600&auto=format&fit=crop'
-  ],
-  'fruit-waste': [
-    'https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1550258987-190a2d41a8ba?q=80&w=600&auto=format&fit=crop'
-  ],
-  'spent-grain': [
-    'https://images.unsplash.com/photo-1574316071802-0d68497b05f5?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1532634922-8fe0b757fb13?q=80&w=600&auto=format&fit=crop'
-  ],
-  'bread-stale': [
-    'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=600&auto=format&fit=crop'
-  ],
-  'fish-bones-shells': [
-    'https://images.unsplash.com/photo-1534604973900-c43ab4c2e0ab?q=80&w=600&auto=format&fit=crop'
-  ],
-  'tea-leaves': [
-    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?q=80&w=600&auto=format&fit=crop'
-  ],
-  'cooking-oil-used': [
-    'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?q=80&w=600&auto=format&fit=crop'
-  ],
-  'other': [
-    'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=600&auto=format&fit=crop'
-  ]
-};
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
+import { getListingPhotosBucket } from '@/lib/supabase/storage';
 
 export default function PostListingPage() {
   const { categories, getCategory } = useCategories();
   const router = useRouter();
+  const photoInputRef = React.useRef<HTMLInputElement | null>(null);
+  const listingPhotosBucket = getListingPhotosBucket();
   const [step, setStep] = React.useState(1);
 
   // Form Fields State
@@ -54,7 +23,8 @@ export default function PostListingPage() {
   const [unit, setUnit] = React.useState('kg');
   const [description, setDescription] = React.useState('');
   const [selectedPhoto, setSelectedPhoto] = React.useState('');
-  const [verificationState, setVerificationState] = React.useState<'idle' | 'connecting' | 'capturing' | 'auditing' | 'verified'>('idle');
+  const [verificationState, setVerificationState] = React.useState<'idle' | 'uploading' | 'verified'>('idle');
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (categories.length === 0) {
@@ -72,23 +42,77 @@ export default function PostListingPage() {
     }, 0);
   }, [categories, category]);
 
-  const handleSimulateVerification = () => {
-    setVerificationState('connecting');
-    
-    setTimeout(() => {
-      setVerificationState('capturing');
-      
-      setTimeout(() => {
-        setVerificationState('auditing');
-        
-        setTimeout(() => {
-          const presets = PHOTO_PRESETS[category] || PHOTO_PRESETS['other'];
-          const randomPreset = presets[Math.floor(Math.random() * presets.length)] || presets[0] || '';
-          setSelectedPhoto(randomPreset);
-          setVerificationState('verified');
-        }, 1500);
-      }, 1200);
-    }, 1000);
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please choose an image file.');
+      event.target.value = '';
+      return;
+    }
+
+    const maxFileSizeBytes = 6 * 1024 * 1024;
+    if (file.size > maxFileSizeBytes) {
+      setUploadError('Please upload an image smaller than 6 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    setUploadError(null);
+    setVerificationState('uploading');
+
+    try {
+      const supabase = createSupabaseClient();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error('You need to be signed in to upload a photo.');
+      }
+
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+
+      const { error: uploadFailure } = await supabase.storage.from(listingPhotosBucket).upload(filePath, file, {
+        cacheControl: '3600',
+        contentType: file.type,
+        upsert: false,
+      });
+
+      if (uploadFailure) {
+        throw uploadFailure;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(listingPhotosBucket).getPublicUrl(filePath);
+
+      if (!publicUrl) {
+        throw new Error('Photo upload succeeded, but no public URL was returned.');
+      }
+
+      setSelectedPhoto(publicUrl);
+      setVerificationState('verified');
+    } catch (err) {
+      setSelectedPhoto('');
+      setVerificationState('idle');
+
+      const message = err instanceof Error ? err.message : 'Unable to upload the photo.';
+      setUploadError(
+        `${message} Make sure the Supabase bucket exists, is public, and allows authenticated uploads.`,
+      );
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const activeCategory = getCategory(category);
@@ -108,7 +132,7 @@ export default function PostListingPage() {
         return;
       }
       if (!selectedPhoto) {
-        alert('Visual verification is required. Please scan the QR code to capture and verify your waste photo first.');
+        alert('A real waste photo is required. Please take or upload one before continuing.');
         return;
       }
     }
@@ -219,6 +243,7 @@ export default function PostListingPage() {
                         setCategory(cat.slug);
                         setSelectedPhoto('');
                         setVerificationState('idle');
+                        setUploadError(null);
                       }}
                       className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
                         category === cat.slug
@@ -285,8 +310,8 @@ export default function PostListingPage() {
         {step === 3 && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">Add Details & Visual Verification</h2>
-              <p className="text-xs text-[#A3A3A3]">Describe your organic material and complete mobile visual verification.</p>
+              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">Add Details & Photo</h2>
+              <p className="text-xs text-[#A3A3A3]">Describe your organic material and attach a real photo from your device.</p>
             </div>
 
             <div className="space-y-4">
@@ -320,71 +345,79 @@ export default function PostListingPage() {
 
                 {verificationState !== 'verified' ? (
                   <div className="relative overflow-hidden rounded-2xl border border-white/6 bg-[#141414] p-5 flex flex-col md:flex-row gap-5 items-center">
-                    
-                    {/* Simulated Scanner / SVG QR Code Container */}
-                    <div className="relative w-32 h-32 bg-white p-2.5 rounded-xl shrink-0 flex items-center justify-center overflow-hidden shadow-inner select-none">
-                      {/* Laser scanner overlay line */}
-                      {verificationState === 'idle' && (
-                        <div className="absolute left-0 right-0 h-0.5 bg-[#A8D97F] opacity-80 shadow-[0_0_8px_#A8D97F] animate-bounce" style={{ animationDuration: '2.5s' }} />
-                      )}
-
-                      {verificationState !== 'idle' && (
-                        <div className="absolute inset-0 bg-black/80 z-10 flex flex-col items-center justify-center gap-1.5 p-2 text-center">
+                    <div className="relative w-32 h-32 rounded-xl shrink-0 flex items-center justify-center overflow-hidden border border-dashed border-[#A8D97F]/30 bg-[#0A0A0A] shadow-inner select-none">
+                      {verificationState === 'uploading' ? (
+                        <div className="absolute inset-0 bg-black/80 z-10 flex flex-col items-center justify-center gap-2 p-2 text-center">
                           <Loader2 size={20} className="text-[#A8D97F] animate-spin" />
                           <span className="text-[9px] text-[#A3A3A3] font-bold uppercase tracking-wider animate-pulse">
-                            {verificationState === 'connecting' && 'Connecting...'}
-                            {verificationState === 'capturing' && 'Capturing Live...'}
-                            {verificationState === 'auditing' && 'Auditing Image...'}
+                            Uploading photo...
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-center px-3">
+                          <div className="rounded-full border border-[#A8D97F]/20 bg-[#2A4A10]/40 p-3">
+                            <Smartphone size={24} className="text-[#A8D97F]" />
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#A8D97F]">
+                            Camera Upload
                           </span>
                         </div>
                       )}
-
-                      {/* Premium High-Fidelity Scannable QR Code */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src="/qr-code.png" 
-                        alt="Scannable QR Code" 
-                        className="w-full h-full object-contain p-1 select-none" 
-                      />
                     </div>
 
-                    {/* Step-by-Step Instructions Panel */}
                     <div className="flex-1 space-y-3 w-full">
                       <div className="space-y-1">
-                        <h4 className="text-xs font-bold text-[#FFFFFF]">Verified Mobile Capture Steps</h4>
-                        <p className="text-[11px] text-[#A3A3A3] leading-relaxed">Point your mobile device camera to snap and verify raw organic content quality instantly.</p>
+                        <h4 className="text-xs font-bold text-[#FFFFFF]">Capture or upload a real waste photo</h4>
+                        <p className="text-[11px] text-[#A3A3A3] leading-relaxed">Use your device camera or photo library. The image is uploaded to Supabase Storage and attached to this listing.</p>
                       </div>
 
                       <div className="space-y-2 text-[10px] text-[#A3A3A3]">
                         <div className="flex gap-2">
                           <span className="font-mono text-xs font-black text-[#A8D97F] bg-[#2A4A10]/50 h-5 w-5 rounded-full flex items-center justify-center shrink-0">1</span>
-                          <span>Scan QR Code with your smartphone camera to connect session.</span>
+                          <span>Tap the upload button on this device.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="font-mono text-xs font-black text-[#A8D97F] bg-[#2A4A10]/50 h-5 w-5 rounded-full flex items-center justify-center shrink-0">2</span>
-                          <span>Position your camera over the batch and capture a live image.</span>
+                          <span>Take a photo of the batch or choose one from your library.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="font-mono text-xs font-black text-[#A8D97F] bg-[#2A4A10]/50 h-5 w-5 rounded-full flex items-center justify-center shrink-0">3</span>
-                          <span>Live quality audits will automatically sync and approve this post.</span>
+                          <span>Continue once the upload finishes and the preview appears.</span>
                         </div>
                       </div>
 
-                      {/* Interactive Simulator Trigger */}
+                      <input
+                        ref={photoInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                      />
+
                       <button
                         type="button"
-                        onClick={handleSimulateVerification}
-                        disabled={verificationState !== 'idle'}
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={verificationState === 'uploading'}
                         className="mt-2 w-full flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#2A4A10]/80 border border-[#A8D97F]/20 text-xs font-bold text-[#A8D97F] hover:bg-[#2A4A10] transition-colors disabled:opacity-50"
                       >
-                        <RefreshCw size={12} className={verificationState !== 'idle' ? 'animate-spin' : ''} />
+                        {verificationState === 'uploading' ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Upload size={12} />
+                        )}
                         <span>
-                          {verificationState === 'idle' && 'Simulate Mobile Capture'}
-                          {verificationState === 'connecting' && 'Connecting to mobile camera...'}
-                          {verificationState === 'capturing' && 'Snapping Live Photo...'}
-                          {verificationState === 'auditing' && 'Analyzing image quality...'}
+                          {verificationState === 'uploading' ? 'Uploading photo...' : 'Take or Upload Photo'}
                         </span>
                       </button>
+
+                      {uploadError ? (
+                        <p className="text-[10px] text-amber-400 leading-relaxed">{uploadError}</p>
+                      ) : (
+                        <p className="text-[10px] text-[#6F6F6F] leading-relaxed">
+                          Recommended: public bucket <span className="font-mono text-[#A3A3A3]">{listingPhotosBucket}</span>, image files under 6 MB.
+                        </p>
+                      )}
                     </div>
 
                   </div>
@@ -398,32 +431,29 @@ export default function PostListingPage() {
                       <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
                         <span className="rounded-full bg-[#1A3A05] px-2.5 py-0.5 text-[9px] font-black text-[#A8D97F] border border-[#A8D97F]/20 shadow flex items-center gap-1">
                           <CheckCircle2 size={10} className="animate-pulse" />
-                          <span>LIVE VERIFIED</span>
+                          <span>PHOTO ATTACHED</span>
                         </span>
                         <span className="rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur-md">
-                          Source: Mobile Shutter
+                          Source: Supabase Storage
                         </span>
-                      </div>
-
-                      <div className="absolute bottom-3 right-3 rounded bg-black/60 px-2 py-0.5 text-[9px] font-mono text-white backdrop-blur-md">
-                        Confidence: 99.1%
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-4">
                       <div className="space-y-0.5">
-                        <span className="block text-[10px] font-black uppercase tracking-wider text-[#A8D97F]">Verification Approved</span>
-                        <span className="block text-[9px] text-[#A3A3A3]">Metadata: iOS Mobile Camera (iPhone 15 Pro, Live Capture Audit passed)</span>
+                        <span className="block text-[10px] font-black uppercase tracking-wider text-[#A8D97F]">Upload complete</span>
+                        <span className="block text-[9px] text-[#A3A3A3]">Your actual waste photo will be published with this listing.</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedPhoto('');
                           setVerificationState('idle');
+                          setUploadError(null);
                         }}
                         className="rounded-lg border border-white/6 bg-white/4 hover:bg-white/8 px-3 py-1.5 text-[10px] font-bold text-[#FFFFFF] transition-colors shrink-0"
                       >
-                        Retake Photo
+                        Replace Photo
                       </button>
                     </div>
                   </div>
