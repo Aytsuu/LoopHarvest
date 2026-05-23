@@ -22,6 +22,9 @@ class ListingRepository:
     async def claim_listing(self, listing_id: str, claimer_id: UUID) -> Listing:
         raise NotImplementedError
 
+    async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
+        raise NotImplementedError
+
 
 class InMemoryListingRepository(ListingRepository):
     def __init__(self) -> None:
@@ -62,6 +65,39 @@ class InMemoryListingRepository(ListingRepository):
             return updated_listing
         raise NotFoundException("Listing")
 
+    async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
+        for index, listing in enumerate(self._listings):
+            if str(listing.id) != listing_id:
+                continue
+            if listing.status == "completed":
+                return listing
+            claimed_by = listing.claimed_by
+            if listing.status == "open":
+                if listing.donor_id == actor_id:
+                    raise ApiException(
+                        status_code=409,
+                        code="listing_completion_requires_recipient",
+                        message="A recipient must complete this handoff.",
+                    )
+                claimed_by = actor_id
+            elif listing.status == "claimed":
+                allowed_actor_ids = {listing.donor_id}
+                if listing.claimed_by is not None:
+                    allowed_actor_ids.add(listing.claimed_by)
+                if actor_id not in allowed_actor_ids:
+                    raise ApiException(
+                        status_code=403,
+                        code="listing_completion_forbidden",
+                        message="You are not allowed to complete this handoff.",
+                    )
+
+            updated_listing = listing.model_copy(
+                update={"status": "completed", "claimed_by": claimed_by}
+            )
+            self._listings[index] = updated_listing
+            return updated_listing
+        raise NotFoundException("Listing")
+
     def reset(self) -> None:
         self._listings.clear()
 
@@ -74,7 +110,7 @@ class SupabaseListingRepository(ListingRepository):
         rows = await self._rest.select(
             "listings",
             columns=(
-                "id,donor_id,title,description,category_slug,quantity_kg,photo_url,"
+                "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
                 "pickup_address,city,country,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
@@ -97,7 +133,7 @@ class SupabaseListingRepository(ListingRepository):
         rows = await self._rest.select(
             "listings",
             columns=(
-                "id,donor_id,title,description,category_slug,quantity_kg,photo_url,"
+                "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
                 "pickup_address,city,country,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
@@ -130,6 +166,65 @@ class SupabaseListingRepository(ListingRepository):
         enriched = await self._enrich([row])
         return enriched[0]
 
+    async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
+        current_rows = await self._rest.select(
+            "listings",
+            columns=(
+                "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
+                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "status,claimed_by,created_at"
+            ),
+            filters={"id": f"eq.{listing_id}"},
+        )
+        if not current_rows:
+            raise NotFoundException("Listing")
+
+        current = current_rows[0]
+        current_status = current["status"]
+        donor_id = UUID(str(current["donor_id"]))
+        claimed_by_raw = current.get("claimed_by")
+        claimed_by = UUID(str(claimed_by_raw)) if claimed_by_raw else None
+
+        if current_status == "completed":
+            enriched = await self._enrich(current_rows)
+            return enriched[0]
+
+        update_payload: dict[str, object] = {"status": "completed"}
+        if current_status == "open":
+            if donor_id == actor_id:
+                raise ApiException(
+                    status_code=409,
+                    code="listing_completion_requires_recipient",
+                    message="A recipient must complete this handoff.",
+                )
+            update_payload["claimed_by"] = str(actor_id)
+        elif current_status == "claimed":
+            allowed_actor_ids = {donor_id}
+            if claimed_by is not None:
+                allowed_actor_ids.add(claimed_by)
+            if actor_id not in allowed_actor_ids:
+                raise ApiException(
+                    status_code=403,
+                    code="listing_completion_forbidden",
+                    message="You are not allowed to complete this handoff.",
+                )
+        else:
+            raise ApiException(
+                status_code=409,
+                code="listing_unavailable",
+                message="This listing cannot be completed from its current state.",
+            )
+
+        row = await self._rest.update(
+            "listings",
+            payload=update_payload,
+            filters={"id": f"eq.{listing_id}"},
+        )
+        if row is None:
+            raise NotFoundException("Listing")
+        enriched = await self._enrich([row])
+        return enriched[0]
+
     async def _enrich(self, rows: list[dict]) -> list[Listing]:
         donor_ids = [row["donor_id"] for row in rows]
         user_rows = await self._rest.by_ids(
@@ -156,6 +251,7 @@ class SupabaseListingRepository(ListingRepository):
             description=row.get("description"),
             category_slug=row["category_slug"],
             quantity_kg=row["quantity_kg"],
+            claim_type=row.get("claim_type", "direct"),
             photo_url=row.get("photo_url"),
             pickup_address=row["pickup_address"],
             city=row["city"],
@@ -183,6 +279,9 @@ class ListingService:
 
     async def claim_listing(self, listing_id: str, claimer_id: UUID) -> Listing:
         return await self._repository.claim_listing(listing_id, claimer_id)
+
+    async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
+        return await self._repository.complete_listing(listing_id, actor_id)
 
 
 def _build_listing_repository(settings: Settings) -> ListingRepository:

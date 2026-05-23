@@ -13,6 +13,7 @@ class ListingBase(ApiModel):
     description: str | None = Field(default=None, max_length=1000)
     category_slug: str = Field(min_length=1, max_length=64)
     quantity_kg: Decimal = Field(gt=0)
+    claim_type: Literal["direct", "message"] = "direct"
     photo_url: str | None = Field(default=None, max_length=2048)
     pickup_address: str = Field(min_length=1, max_length=240)
     city: str = Field(min_length=1, max_length=120)
@@ -30,5 +31,7 @@ class Listing(ListingBase):
     donor_name: str | None = None
     donor_avatar_url: str | None = None
     claimed_by: UUID | None = None
-    status: Literal["open", "claimed", "completed", "expired"] = "open"
+    status: Literal["open", "claimed", "completed"] = "open"
+    donor_confirmed_at: datetime | None = None
+    recipient_confirmed_at: datetime | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

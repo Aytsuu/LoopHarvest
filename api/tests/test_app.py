@@ -59,27 +59,44 @@ async def test_create_listing_and_impact_summary(client):
         "description": "Fresh grounds from cafe prep.",
         "category_slug": "coffee-grounds",
         "quantity_kg": "8.5",
+        "claim_type": "message",
         "pickup_address": "123 Market St",
         "city": "Manila",
         "country": "Philippines",
     }
 
     create_response = await client.post("/api/v1/listings", json=listing_payload)
-    app.dependency_overrides.clear()
 
     assert create_response.status_code == 201
     created_listing = create_response.json()["data"]
     assert created_listing["status"] == "open"
     assert created_listing["category_slug"] == "coffee-grounds"
+    assert created_listing["claim_type"] == "message"
 
     impact_response = await client.get("/api/v1/impact/summary")
 
     assert impact_response.status_code == 200
     assert impact_response.json()["data"] == {
+        "total_kg_diverted": "0",
+        "total_co2_saved_kg": "0",
+        "total_water_saved_liters": "0",
+        "active_listings": 1,
+        "active_requests": 0,
+    }
+
+    complete_response = await client.post(f"/api/v1/listings/{created_listing['id']}/complete")
+    app.dependency_overrides.clear()
+
+    assert complete_response.status_code == 200
+    assert complete_response.json()["data"]["status"] == "completed"
+
+    completed_impact_response = await client.get("/api/v1/impact/summary")
+    assert completed_impact_response.status_code == 200
+    assert completed_impact_response.json()["data"] == {
         "total_kg_diverted": "8.5",
         "total_co2_saved_kg": "6.80",
         "total_water_saved_liters": "680.0",
-        "active_listings": 1,
+        "active_listings": 0,
         "active_requests": 0,
     }
 
@@ -117,6 +134,7 @@ async def test_claim_listing(client):
             "description": "Collected today.",
             "category_slug": "vegetable-scraps",
             "quantity_kg": "4",
+            "claim_type": "direct",
             "pickup_address": "456 Grove St",
             "city": "Manila",
             "country": "Philippines",
@@ -129,6 +147,73 @@ async def test_claim_listing(client):
 
     assert claim_response.status_code == 200
     assert claim_response.json()["data"]["status"] == "claimed"
+
+
+async def test_complete_listing_from_open_assigns_recipient_and_completes(client):
+    donor_user = _fake_user()
+    recipient_user = AuthenticatedUser(
+        id=uuid4(),
+        email="recipient@example.com",
+        display_name="Community Recipient",
+    )
+    app.dependency_overrides[get_current_user] = lambda: donor_user
+    create_response = await client.post(
+        "/api/v1/listings",
+        json={
+            "title": "Fresh peelings",
+            "description": "Collected today.",
+            "category_slug": "vegetable-scraps",
+            "quantity_kg": "4",
+            "claim_type": "message",
+            "pickup_address": "456 Grove St",
+            "city": "Manila",
+            "country": "Philippines",
+        },
+    )
+
+    listing_id = create_response.json()["data"]["id"]
+    app.dependency_overrides[get_current_user] = lambda: recipient_user
+    complete_response = await client.post(f"/api/v1/listings/{listing_id}/complete")
+    app.dependency_overrides.clear()
+
+    assert complete_response.status_code == 200
+    payload = complete_response.json()["data"]
+    assert payload["status"] == "completed"
+    assert payload["claimed_by"] == str(recipient_user.id)
+
+
+async def test_complete_listing_from_claimed_allows_finishing_handoff(client):
+    donor_user = _fake_user()
+    recipient_user = AuthenticatedUser(
+        id=uuid4(),
+        email="recipient@example.com",
+        display_name="Community Recipient",
+    )
+    app.dependency_overrides[get_current_user] = lambda: donor_user
+    create_response = await client.post(
+        "/api/v1/listings",
+        json={
+            "title": "Fresh peelings",
+            "description": "Collected today.",
+            "category_slug": "vegetable-scraps",
+            "quantity_kg": "4",
+            "claim_type": "direct",
+            "pickup_address": "456 Grove St",
+            "city": "Manila",
+            "country": "Philippines",
+        },
+    )
+
+    listing_id = create_response.json()["data"]["id"]
+    app.dependency_overrides[get_current_user] = lambda: recipient_user
+    claim_response = await client.post(f"/api/v1/listings/{listing_id}/claim")
+    assert claim_response.status_code == 200
+
+    complete_response = await client.post(f"/api/v1/listings/{listing_id}/complete")
+    app.dependency_overrides.clear()
+
+    assert complete_response.status_code == 200
+    assert complete_response.json()["data"]["status"] == "completed"
 
 
 async def test_fulfill_request(client):

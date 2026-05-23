@@ -41,3 +41,15 @@ async def claim_listing(listing_id: str, current_user: CurrentUser) -> ApiEnvelo
         data=await listing_service.claim_listing(listing_id, current_user.id),
         message="Listing claimed.",
     )
+
+
+@router.post(
+    "/{listing_id}/complete",
+    response_model=ApiEnvelope[Listing],
+    summary="Complete listing handoff",
+)
+async def complete_listing(listing_id: str, current_user: CurrentUser) -> ApiEnvelope[Listing]:
+    return ApiEnvelope(
+        data=await listing_service.complete_listing(listing_id, current_user.id),
+        message="Listing handoff completed.",
+    )

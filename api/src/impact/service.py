@@ -26,13 +26,15 @@ class ImpactService:
                 else DEFAULT_WATER_SAVED_LITERS_PER_KG
             )
 
-        total_kg_diverted = sum((listing.quantity_kg for listing in listings), start=Decimal("0"))
+        completed_listings = [listing for listing in listings if listing.status == "completed"]
+
+        total_kg_diverted = sum((listing.quantity_kg for listing in completed_listings), start=Decimal("0"))
         total_co2_saved_kg = sum(
-            (listing.quantity_kg * get_co2_factor(listing.category_slug) for listing in listings),
+            (listing.quantity_kg * get_co2_factor(listing.category_slug) for listing in completed_listings),
             start=Decimal("0"),
         )
         total_water_saved_liters = sum(
-            (listing.quantity_kg * get_water_factor(listing.category_slug) for listing in listings),
+            (listing.quantity_kg * get_water_factor(listing.category_slug) for listing in completed_listings),
             start=Decimal("0"),
         )
         active_listings = sum(1 for listing in listings if listing.status == "open")
