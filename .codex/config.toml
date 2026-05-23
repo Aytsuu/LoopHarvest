@@ -37,6 +37,12 @@ url = "https://mcp.exa.ai/mcp"
 url = "https://mcp.supabase.com/mcp"
 startup_timeout_sec = 30
 
+[mcp_servers.supabase.tools.execute_sql]
+approval_mode = "approve"
+
+[mcp_servers.supabase.tools.apply_migration]
+approval_mode = "approve"
+
 [mcp_servers.mapbox-mcp]
 url = "https://mcp.mapbox.com/mcp"
 startup_timeout_sec = 30
