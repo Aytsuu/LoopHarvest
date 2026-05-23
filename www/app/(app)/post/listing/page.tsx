@@ -339,44 +339,13 @@ export default function PostListingPage() {
                         </div>
                       )}
 
-                      {/* Premium High-Fidelity SVG QR Code */}
-                      <svg className="w-full h-full text-[#141414]" viewBox="0 0 100 100" fill="currentColor">
-                        {/* Position Markers (Corners) */}
-                        <path d="M 5,5 h 25 v 5 h -20 v 20 h -5 z M 70,5 h 25 v 25 h -5 v -20 h -20 z M 5,70 h 5 v 20 h 20 v 5 h -25 z" />
-                        <path d="M 10,10 h 15 v 15 h -15 z M 13,13 h 9 v 9 h -9 z" />
-                        <path d="M 75,10 h 15 v 15 h -15 z M 78,13 h 9 v 9 h -9 z" />
-                        <path d="M 10,75 h 15 v 15 h -15 z M 13,78 h 9 v 9 h -9 z" />
-                        {/* Alignment pattern (bottom right-ish) */}
-                        <path d="M 68,68 h 10 v 10 h -10 z M 71,71 h 4 v 4 h -4 z" />
-                        {/* Fake bits/dots spread across QR area */}
-                        <rect x="35" y="5" width="5" height="5" />
-                        <rect x="45" y="12" width="10" height="5" />
-                        <rect x="60" y="5" width="5" height="15" />
-                        <rect x="35" y="20" width="15" height="5" />
-                        <rect x="55" y="25" width="5" height="5" />
-                        
-                        <rect x="5" y="35" width="5" height="15" />
-                        <rect x="15" y="45" width="15" height="5" />
-                        <rect x="25" y="35" width="5" height="10" />
-                        
-                        <rect x="35" y="35" width="10" height="10" />
-                        <rect x="50" y="40" width="5" height="5" />
-                        <rect x="40" y="55" width="15" height="5" />
-                        <rect x="5" y="60" width="15" height="5" />
-                        <rect x="25" y="55" width="5" height="10" />
-                        
-                        <rect x="80" y="35" width="15" height="5" />
-                        <rect x="70" y="45" width="5" height="15" />
-                        <rect x="85" y="50" width="10" height="10" />
-                        
-                        <rect x="35" y="70" width="10" height="5" />
-                        <rect x="50" y="65" width="5" height="15" />
-                        <rect x="35" y="85" width="20" height="5" />
-                        
-                        <rect x="65" y="85" width="10" height="10" />
-                        <rect x="80" y="80" width="15" height="5" />
-                        <rect x="85" y="90" width="5" height="5" />
-                      </svg>
+                      {/* Premium High-Fidelity Scannable QR Code */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img 
+                        src="/qr-code.png" 
+                        alt="Scannable QR Code" 
+                        className="w-full h-full object-contain p-1 select-none" 
+                      />
                     </div>
 
                     {/* Step-by-Step Instructions Panel */}
