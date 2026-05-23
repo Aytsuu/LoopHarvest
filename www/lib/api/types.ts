@@ -11,7 +11,11 @@ export interface ApiUser {
   display_name: string | null;
   avatar_url: string | null;
   city: string | null;
+  state_region: string | null;
+  postal_code: string | null;
   country: string | null;
+  bio: string | null;
+  created_at: string | null;
 }
 
 export interface ApiListing {
@@ -23,13 +27,14 @@ export interface ApiListing {
   description: string | null;
   category_slug: string;
   quantity_kg: string;
+  claim_type: "direct" | "message";
   photo_url: string | null;
   pickup_address: string;
   city: string;
   country: string;
   pickup_window_start: string | null;
   pickup_window_end: string | null;
-  status: "open" | "claimed" | "completed" | "expired";
+  status: "open" | "claimed" | "completed";
   claimed_by: string | null;
   created_at: string;
 }
@@ -78,12 +83,16 @@ export interface Listing {
   unit: string;
   distance: number;
   city: string;
+  pickupAddress: string;
   timeAgo: string;
   donorName: string;
   donorAvatar: string;
   description: string;
-  status: "open" | "claimed" | "completed" | "expired";
+  status: "open" | "claimed" | "completed";
   photo: string;
+  claimType: "direct" | "message";
+  donorId: string;
+  claimedBy?: string | null;
 }
 
 export interface RequestItem {

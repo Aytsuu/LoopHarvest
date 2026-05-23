@@ -2,8 +2,10 @@
 
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
 import { notificationService } from '@/lib/api/notifications';
+import { countUnreadThreads, fetchChatThreads } from '@/lib/chat';
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 
 interface NavigationRailProps {
   onPostClick: () => void;
@@ -15,9 +17,11 @@ interface NavigationRailProps {
 export default function NavigationRail({ onPostClick, onSignOutClick, isCollapsed = false, onToggleCollapse }: NavigationRailProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const [supabase] = React.useState(() => createSupabaseClient());
 
   const [mounted, setMounted] = React.useState(false);
   const [unreadCount, setUnreadCount] = React.useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = React.useState(0);
 
   React.useEffect(() => {
     setTimeout(() => {
@@ -25,21 +29,37 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
     }, 0);
   }, []);
 
-  const updateCount = React.useCallback(() => {
+  const updateCount = React.useCallback(async () => {
     setUnreadCount(notificationService.getNotifications().filter(n => n.status === 'unread').length);
-  }, []);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setChatUnreadCount(0);
+        return;
+      }
+
+      const threads = await fetchChatThreads(supabase, user.id);
+      setChatUnreadCount(countUnreadThreads(threads, user.id));
+    } catch {
+      setChatUnreadCount(0);
+    }
+  }, [supabase]);
 
   React.useEffect(() => {
     if (mounted) {
-      const timer = setTimeout(() => {
-        updateCount();
+      const timeout = window.setTimeout(() => {
+        void updateCount();
       }, 0);
 
       window.addEventListener('notifications-updated', updateCount);
       window.addEventListener('post-created', updateCount);
       
       return () => {
-        clearTimeout(timer);
+        window.clearTimeout(timeout);
         window.removeEventListener('notifications-updated', updateCount);
         window.removeEventListener('post-created', updateCount);
       };
@@ -48,18 +68,76 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
 
   React.useEffect(() => {
     if (mounted) {
-      const timer = setTimeout(() => {
-        updateCount();
+      const timeout = window.setTimeout(() => {
+        void updateCount();
       }, 0);
-      return () => clearTimeout(timer);
+      return () => window.clearTimeout(timeout);
     }
   }, [pathname, mounted, updateCount]);
+
+  React.useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+
+    let isActive = true;
+    let cleanup = () => {};
+
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!isActive || !user) {
+        return;
+      }
+
+      const refresh = () => {
+        void updateCount();
+      };
+
+      const participantAChannel = supabase
+        .channel(`nav-chat-a-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'api',
+            table: 'chat_threads',
+            filter: `participant_a_id=eq.${user.id}`,
+          },
+          refresh,
+        )
+        .subscribe();
+
+      const participantBChannel = supabase
+        .channel(`nav-chat-b-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'api',
+            table: 'chat_threads',
+            filter: `participant_b_id=eq.${user.id}`,
+          },
+          refresh,
+        )
+        .subscribe();
+
+      cleanup = () => {
+        void supabase.removeChannel(participantAChannel);
+        void supabase.removeChannel(participantBChannel);
+      };
+    });
+
+    return () => {
+      isActive = false;
+      cleanup();
+    };
+  }, [mounted, supabase, updateCount]);
 
   const items = [
     { label: 'Home Feed', icon: Home, route: '/home' },
     { label: 'Browse', icon: Search, route: '/browse' },
     { label: 'Impact Dashboard', icon: BarChart2, route: '/impact' },
     { label: 'Notifications', icon: Bell, route: '/notifications', badge: unreadCount },
+    { label: 'Messages', icon: MessageSquare, route: '/chat', badge: chatUnreadCount },
     { label: 'Settings', icon: Settings, route: '/settings' }
   ];
 
@@ -71,11 +149,11 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
     >
       {/* Brand Header */}
       <div 
-        className={`group relative mb-8 flex items-center cursor-pointer px-3 py-2 ${isCollapsed ? 'justify-center px-0' : ''}`}
+        className={`group relative mb-8 flex items-center cursor-pointer py-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}
         onClick={() => router.push('/home')}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 shrink-0 object-contain rounded-full" />
+        <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 shrink-0 object-contain" />
         <span 
           className={`font-display text-2xl font-extrabold tracking-tight text-[#A8D97F] select-none transition-all duration-300 origin-left overflow-hidden ${
             isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-2'

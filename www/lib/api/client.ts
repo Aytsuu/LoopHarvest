@@ -73,6 +73,21 @@ export const apiClient = {
   getCurrentUser() {
     return request<ApiUser>("/auth/me");
   },
+  updateCurrentUser(payload: {
+    email: string;
+    display_name: string;
+    avatar_url: string;
+    city: string | null;
+    state_region: string | null;
+    postal_code: string | null;
+    country: string | null;
+    bio: string | null;
+  }) {
+    return request<ApiUser>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
   getListings() {
     return publicRequest<ApiListing[]>("/listings");
   },
@@ -84,6 +99,7 @@ export const apiClient = {
     description: string;
     category_slug: string;
     quantity_kg: number;
+    claim_type: "direct" | "message";
     photo_url?: string;
     pickup_address: string;
     city: string;
@@ -96,6 +112,11 @@ export const apiClient = {
   },
   claimListing(listingId: string) {
     return request<ApiListing>(`/listings/${listingId}/claim`, {
+      method: "POST",
+    });
+  },
+  completeListing(listingId: string) {
+    return request<ApiListing>(`/listings/${listingId}/complete`, {
       method: "POST",
     });
   },

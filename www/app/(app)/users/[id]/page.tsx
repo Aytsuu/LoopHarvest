@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ShieldCheck, Calendar, Scale, Heart, Award, MessageSquare } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
-import { toListingCardModel, toRequestCardModel } from '@/lib/api/mappers';
+import { toListingCardModel, toRequestCardModel, toUserAvatarUrl } from '@/lib/api/mappers';
 import type { Listing, RequestItem } from '@/lib/api/types';
 import ListingCard from '@/components/cards/ListingCard';
 import RequestCard from '@/components/cards/RequestCard';
@@ -68,7 +68,7 @@ export default function UserProfileDetailPage() {
 
         // 3. Extract profile details
         let name = 'LoopHarvest Member';
-        let avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${rawId}`;
+        let avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(rawId)}`;
         let city = 'San Francisco';
         let role = 'Circular Contributor';
         let verified = false;
@@ -76,9 +76,7 @@ export default function UserProfileDetailPage() {
 
         if (isCurrentUser) {
           name = currentUser.display_name ?? 'You (Current User)';
-          if (currentUser.avatar_url) {
-            avatar = currentUser.avatar_url;
-          }
+          avatar = toUserAvatarUrl(currentUser);
           city = currentUser.city ?? 'San Francisco';
           role = 'Core Loop Node';
           verified = true;

@@ -110,7 +110,6 @@
   --status-open:      #A8D97F;   /* Open request or listing */
   --status-claimed:   #E8A838;   /* Claimed, awaiting pickup */
   --status-completed: #4ECDC4;   /* Successfully completed */
-  --status-expired:   #525252;   /* Expired */
 
   /* ── INTERACTIVE STATES ── */
   --state-hover:   rgba(168, 217, 127, 0.08);
@@ -320,4 +319,3 @@ html.density-comfortable {
 html.density-spacious {
   font-size: 18px !important;
 }
-

@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Map, { Marker, MapRef } from 'react-map-gl/mapbox';
-import { Leaf, HelpCircle, X, Clock } from 'lucide-react';
+import { Leaf, HelpCircle, X, Clock, MessageSquare } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import mapboxgl from 'mapbox-gl';
  
@@ -24,6 +25,8 @@ export interface GlobePin {
   timeAgo: string;
   description: string;
   status: 'open' | 'claimed' | 'completed' | 'expired';
+  claimType?: 'direct' | 'message';
+  donorId?: string;
 }
 
 export const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
@@ -77,7 +80,17 @@ export default function Globe({
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
   const [selectedPin, setSelectedPin] = React.useState<GlobePin | null>(null);
   const [webGlSupported, setWebGlSupported] = React.useState<boolean | null>(null);
+  const [zoom, setZoom] = React.useState(projection === 'globe' ? 1.6 : 1.1);
   const token = accessToken || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => apiClient.getCurrentUser().catch(() => null),
+  });
+
+  const isOwner = currentUser && selectedPin && selectedPin.type === 'listing'
+    ? currentUser.id === selectedPin.donorId
+    : false;
 
   React.useEffect(() => {
     setTimeout(() => {
@@ -126,7 +139,9 @@ export default function Globe({
         city: l.city || 'San Francisco',
         timeAgo: l.timeAgo,
         description: l.description,
-        status: l.status
+        status: l.status,
+        claimType: l.claimType,
+        donorId: l.donorId
       });
     });
 
@@ -152,6 +167,82 @@ export default function Globe({
 
     return pinsList;
   }, [providedListings, providedRequests, refreshTrigger]);
+
+  // Client-side clustering of pins by city when highly zoomed out
+  const mapElements = React.useMemo(() => {
+    interface MapElement {
+      key: string;
+      isCluster: boolean;
+      latitude: number;
+      longitude: number;
+      pin?: GlobePin;
+      cluster?: {
+        city: string;
+        latitude: number;
+        longitude: number;
+        pins: GlobePin[];
+        listingCount: number;
+        requestCount: number;
+      };
+    }
+
+    // If zoom is high, don't cluster: show individual pins with radial dispersion
+    if (zoom >= 4.0) {
+      return pins.map((pin): MapElement => ({
+        key: `pin-${pin.id}`,
+        isCluster: false,
+        latitude: pin.latitude,
+        longitude: pin.longitude,
+        pin
+      }));
+    }
+
+    // Otherwise, cluster pins by city
+    const groups: Record<string, GlobePin[]> = {};
+    pins.forEach(pin => {
+      const key = pin.city || 'San Francisco';
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(pin);
+    });
+
+    const elements: MapElement[] = [];
+
+    Object.entries(groups).forEach(([city, groupPins]) => {
+      if (groupPins.length === 1) {
+        const pin = groupPins[0];
+        elements.push({
+          key: `pin-${pin.id}`,
+          isCluster: false,
+          latitude: pin.latitude,
+          longitude: pin.longitude,
+          pin
+        });
+      } else {
+        const base = CITY_COORDS[city] || CITY_COORDS['San Francisco'];
+        const listingCount = groupPins.filter(p => p.type === 'listing').length;
+        const requestCount = groupPins.filter(p => p.type === 'request').length;
+
+        elements.push({
+          key: `cluster-${city}`,
+          isCluster: true,
+          latitude: base.lat,
+          longitude: base.lng,
+          cluster: {
+            city,
+            latitude: base.lat,
+            longitude: base.lng,
+            pins: groupPins,
+            listingCount,
+            requestCount
+          }
+        });
+      }
+    });
+
+    return elements;
+  }, [pins, zoom]);
 
   React.useEffect(() => {
     if (!focusedItemId) return;
@@ -208,6 +299,25 @@ export default function Globe({
     }
   };
 
+  const handleClusterClick = (
+    cluster: { latitude: number; longitude: number },
+    e: { originalEvent?: { stopPropagation: () => void }; stopPropagation?: () => void }
+  ) => {
+    if (e && e.originalEvent) {
+      e.originalEvent.stopPropagation();
+    } else if (e && e.stopPropagation) {
+      e.stopPropagation();
+    }
+    
+    // Zoom in on the cluster center
+    mapRef.current?.flyTo({
+      center: [cluster.longitude, cluster.latitude],
+      zoom: 5.5,
+      duration: 1200,
+      essential: true
+    });
+  };
+
   const applyCustomColors = React.useCallback((map: mapboxgl.Map | undefined) => {
     if (!map) return;
     try {
@@ -261,6 +371,9 @@ export default function Globe({
           latitude: 25,
           zoom: projection === 'globe' ? 1.6 : 1.1
         }}
+        onMove={(evt) => {
+          setZoom(evt.viewState.zoom);
+        }}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/dark-v11"
         projection={{ name: projection }}
@@ -276,62 +389,133 @@ export default function Globe({
         onStyleData={() => applyCustomColors(mapRef.current?.getMap())}
         reuseMaps
       >
-        {pins.map((pin) => (
-          <Marker
-            key={pin.id}
-            latitude={pin.latitude}
-            longitude={pin.longitude}
-            anchor="bottom"
-            onClick={(e) => {
-              e.originalEvent.stopPropagation();
-              setSelectedPin(pin);
-              onPinSelect?.(pin);
-            }}
-          >
-            <div className="group relative flex flex-col items-center cursor-pointer">
-              <div className="relative">
-                {/* Outer pulsing ring for active open loops */}
-                {pin.status === 'open' && (
-                  <span className={`absolute inset-0 rounded-full animate-ping opacity-60 ${
-                    pin.type === 'listing' ? 'bg-[#A8D97F]' : 'bg-[#E8A838]'
-                  }`} style={{ animationDuration: '2.5s' }} />
-                )}
+        {mapElements.map((el) => {
+          if (el.isCluster && el.cluster) {
+            const cluster = el.cluster;
+            return (
+              <Marker
+                key={el.key}
+                latitude={el.latitude}
+                longitude={el.longitude}
+                anchor="bottom"
+                onClick={(e) => handleClusterClick(cluster, e)}
+              >
+                <div className="group relative flex flex-col items-center cursor-pointer">
+                  {/* Cluster Badge */}
+                  <div className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 shadow-xl transition-all duration-300 group-hover:scale-110 ${
+                    cluster.requestCount === 0 
+                      ? 'border-[#A8D97F] bg-[#1A3A05]/90 text-[#A8D97F] shadow-[0_0_15px_rgba(168,217,127,0.45)]' 
+                      : cluster.listingCount === 0
+                      ? 'border-[#E8A838] bg-[#4D3105]/90 text-[#E8A838] shadow-[0_0_15px_rgba(232,168,56,0.45)]'
+                      : 'border-transparent bg-gradient-to-br from-[#A8D97F] to-[#E8A838] shadow-[0_0_15px_rgba(168,217,127,0.3)]'
+                  }`}>
+                    {cluster.listingCount > 0 && cluster.requestCount > 0 ? (
+                      <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0E0E0E]/90 text-white font-black text-xs">
+                        {cluster.pins.length}
+                      </div>
+                    ) : (
+                      <span className="text-xs font-black text-white">
+                        {cluster.pins.length}
+                      </span>
+                    )}
+                    
+                    {/* Visual Category Icon Badges on the sides or top */}
+                    <div className="absolute -right-1.5 -top-1.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#0E0E0E] border border-white/10 text-white text-[8px] font-black">
+                      {cluster.listingCount > 0 && cluster.requestCount > 0 ? (
+                        <div className="flex gap-0.5 items-center">
+                          <div className="h-1.5 w-1.5 rounded-full bg-[#A8D97F]" />
+                          <div className="h-1.5 w-1.5 rounded-full bg-[#E8A838]" />
+                        </div>
+                      ) : cluster.requestCount === 0 ? (
+                        <Leaf size={8} className="text-[#A8D97F]" fill="currentColor" />
+                      ) : (
+                        <HelpCircle size={8} className="text-[#E8A838]" />
+                      )}
+                    </div>
+                  </div>
 
-                <div className={`overflow-hidden rounded-full border-2 bg-[#0E0E0E] p-0.5 shadow-lg transition-all duration-300 group-hover:scale-125 ${
-                  pin.status === 'open' 
-                    ? pin.type === 'listing' ? 'border-[#A8D97F]' : 'border-[#E8A838]'
-                    : 'border-white/20'
-                }`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={pin.avatar}
-                    alt={pin.name}
-                    className={`h-9 w-9 rounded-full object-cover bg-black/40 ${
-                      pin.status !== 'open' ? 'grayscale opacity-55' : ''
-                    }`}
-                  />
+                  {/* City Label */}
+                  <div className="mt-1.5 rounded-md bg-[#0E0E0E]/90 border border-white/10 px-2 py-0.5 text-[9px] font-black uppercase text-[#FFFFFF] shadow-2xl backdrop-blur-md">
+                    {cluster.city}
+                  </div>
+                  
+                  {/* Dynamic tooltip on hover */}
+                  <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-30">
+                    <div className="bg-[#0E0E0E] border border-white/10 rounded-lg p-2 text-[10px] text-white whitespace-nowrap shadow-2xl backdrop-blur-md space-y-0.5">
+                      <div className="font-bold text-center border-b border-white/5 pb-1 mb-1">{cluster.city} Cluster</div>
+                      {cluster.listingCount > 0 && (
+                        <div className="flex items-center gap-1.5 text-[#A8D97F]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#A8D97F]" />
+                          <span>{cluster.listingCount} Donations Available</span>
+                        </div>
+                      )}
+                      {cluster.requestCount > 0 && (
+                        <div className="flex items-center gap-1.5 text-[#E8A838]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#E8A838]" />
+                          <span>{cluster.requestCount} Appeals Needed</span>
+                        </div>
+                      )}
+                      <div className="text-[8px] text-[#8C8F7E] text-center pt-1 mt-1 border-t border-white/5 font-medium">Click to zoom and inspect</div>
+                    </div>
+                    <div className="w-1.5 h-1.5 bg-[#0E0E0E] border-r border-b border-white/10 rotate-45 -mt-1" />
+                  </div>
                 </div>
-                
-                {/* M3 Style Type Indicator Badge */}
-                <div className={`absolute -right-1.5 -top-1.5 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-[#0E0E0E] shadow-md transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:scale-110 ${
-                  pin.status === 'open'
-                    ? pin.type === 'listing' ? 'bg-[#A8D97F]' : 'bg-[#E8A838]'
-                    : 'bg-[#525252]'
-                }`}>
-                  {pin.type === 'listing' ? (
-                    <Leaf size={10} className={pin.status === 'open' ? 'text-[#1A3A05]' : 'text-white/60'} fill="currentColor" />
-                  ) : (
-                    <HelpCircle size={10} className={pin.status === 'open' ? 'text-[#3D2800]' : 'text-white/60'} />
-                  )}
+              </Marker>
+            );
+          } else if (el.pin) {
+            const pin = el.pin;
+            return (
+              <Marker
+                key={el.key}
+                latitude={el.latitude}
+                longitude={el.longitude}
+                anchor="bottom"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  setSelectedPin(pin);
+                  onPinSelect?.(pin);
+                }}
+              >
+                <div className="group relative flex flex-col items-center cursor-pointer">
+                  <div className="relative">
+                    <div className={`overflow-hidden rounded-full border-2 bg-[#0E0E0E] p-0.5 shadow-lg transition-all duration-300 group-hover:scale-125 ${
+                      pin.status === 'open' 
+                        ? pin.type === 'listing' ? 'border-[#A8D97F]' : 'border-[#E8A838]'
+                        : 'border-white/20'
+                    }`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={pin.avatar}
+                        alt={pin.name}
+                        className={`h-9 w-9 rounded-full object-cover bg-black/40 ${
+                          pin.status !== 'open' ? 'grayscale opacity-55' : ''
+                        }`}
+                      />
+                    </div>
+                    
+                    {/* M3 Style Type Indicator Badge */}
+                    <div className={`absolute -right-1.5 -top-1.5 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-[#0E0E0E] shadow-md transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:scale-110 ${
+                      pin.status === 'open'
+                        ? pin.type === 'listing' ? 'bg-[#A8D97F]' : 'bg-[#E8A838]'
+                        : 'bg-[#525252]'
+                    }`}>
+                      {pin.type === 'listing' ? (
+                        <Leaf size={10} className={pin.status === 'open' ? 'text-[#1A3A05]' : 'text-white/60'} fill="currentColor" />
+                      ) : (
+                        <HelpCircle size={10} className={pin.status === 'open' ? 'text-[#3D2800]' : 'text-white/60'} />
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-1 rounded-md bg-[#0E0E0E]/90 border border-white/10 px-2 py-0.5 text-[9px] font-black uppercase text-[#FFFFFF] opacity-0 shadow-2xl transition-opacity duration-200 group-hover:opacity-100 backdrop-blur-md">
+                    {pin.title}
+                  </div>
+                  <div className="h-2 w-0.5 bg-white/20" />
                 </div>
-              </div>
-              <div className="mt-1 rounded-md bg-[#0E0E0E]/90 border border-white/10 px-2 py-0.5 text-[9px] font-black uppercase text-[#FFFFFF] opacity-0 shadow-2xl transition-opacity duration-200 group-hover:opacity-100 backdrop-blur-md">
-                {pin.title}
-              </div>
-              <div className="h-2 w-0.5 bg-white/20" />
-            </div>
-          </Marker>
-        ))}
+              </Marker>
+            );
+          }
+          return null;
+        })}
       </Map>
 
 
@@ -422,16 +606,35 @@ export default function Globe({
 
               <div className="mt-6 w-full space-y-2">
                 {selectedPin.status === 'open' ? (
-                  <button 
-                    onClick={handleAction}
-                    className={`w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg transition duration-200 active:scale-95 ${
-                      selectedPin.type === 'listing' 
-                        ? 'bg-[#A8D97F] hover:bg-[#92cc63] text-[#1A3A05]' 
-                        : 'bg-[#E8A838] hover:bg-[#d89225] text-[#3D2800]'
-                    }`}
-                  >
-                    {selectedPin.type === 'listing' ? 'Reserve Waste Item' : 'Offer Help / Fulfill'}
-                  </button>
+                  isOwner ? (
+                    <button 
+                      disabled
+                      className="w-full rounded-xl py-3.5 text-xs font-bold tracking-wider bg-[#222222] border border-white/10 text-[#A3A3A3] opacity-80 cursor-not-allowed text-center"
+                    >
+                      Your Listing
+                    </button>
+                  ) : selectedPin.type === 'listing' && selectedPin.claimType === 'message' ? (
+                    <button 
+                      onClick={() => router.push(
+                        `/chat?listingId=${selectedPin.id}&recipientId=${selectedPin.donorId}&recipientName=${encodeURIComponent(selectedPin.name)}&recipientAvatar=${encodeURIComponent(selectedPin.avatar || '')}`
+                      )}
+                      className="w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg bg-[#2A4A10] border border-[#A8D97F]/20 text-[#A8D97F] hover:bg-[#2A4A10]/80 transition duration-200 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <MessageSquare size={14} />
+                      <span>Message Donor</span>
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={handleAction}
+                      className={`w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg transition duration-200 active:scale-95 ${
+                        selectedPin.type === 'listing' 
+                          ? 'bg-[#A8D97F] hover:bg-[#92cc63] text-[#1A3A05]' 
+                          : 'bg-[#E8A838] hover:bg-[#d89225] text-[#3D2800]'
+                      }`}
+                    >
+                      {selectedPin.type === 'listing' ? 'Reserve Waste Item' : 'Offer Help / Fulfill'}
+                    </button>
+                  )
                 ) : (
                   <button 
                     disabled

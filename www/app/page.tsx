@@ -86,7 +86,7 @@ export default function LandingPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 object-contain rounded-full" />
+              <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 object-contain" />
               <span className="font-display text-xl font-extrabold tracking-tight text-[#A8D97F] select-none">LoopHarvest</span>
             </div>
             <h1 className="font-display text-4xl font-extrabold leading-tight tracking-tight text-[#FFFFFF] md:text-5xl">

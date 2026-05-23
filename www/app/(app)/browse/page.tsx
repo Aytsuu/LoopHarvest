@@ -168,7 +168,8 @@ export default function BrowseMapPage() {
       listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       listing.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory ? listing.category === selectedCategory : true;
-    return matchesSearch && matchesCategory;
+    const isOpen = listing.status === 'open';
+    return matchesSearch && matchesCategory && isOpen;
   });
 
   const filteredRequests = requests.filter((request) => {
@@ -176,7 +177,8 @@ export default function BrowseMapPage() {
       request.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory ? request.category === selectedCategory : true;
-    return matchesSearch && matchesCategory;
+    const isOpen = request.status === 'open';
+    return matchesSearch && matchesCategory && isOpen;
   });
 
   const handleClaim = (id: string) => {
@@ -241,13 +243,13 @@ export default function BrowseMapPage() {
         <div className="flex rounded-md border border-white/6 bg-[#141414] p-0.5">
           <button
             onClick={() => setActiveTab('listings')}
-            className={`flex-1 rounded py-1.5 text-xs font-bold ${activeTab === 'listings' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
+            className={`flex-1 rounded-sm py-1.5 text-xs font-bold ${activeTab === 'listings' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
           >
             Food Waste
           </button>
           <button
             onClick={() => setActiveTab('requests')}
-            className={`flex-1 rounded py-1.5 text-xs font-bold ${activeTab === 'requests' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
+            className={`flex-1 rounded-sm py-1.5 text-xs font-bold ${activeTab === 'requests' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
           >
             Appeals
           </button>
@@ -322,6 +324,7 @@ export default function BrowseMapPage() {
                     listing={listing}
                     onClaim={handleClaim}
                     onClick={() => setSelectedItem(listing)}
+                    hideImage={true}
                   />
                 )) : <div className="py-12 text-center text-xs text-[#525252]">No matching listings on the map.</div>)
               : (currentRequests.length > 0 ? currentRequests.map((request) => (

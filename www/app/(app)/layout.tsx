@@ -101,7 +101,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="absolute inset-0 rounded-full border-4 border-[#A8D97F]/10" />
                 <div className="absolute inset-0 animate-spin rounded-full border-4 border-t-[#A8D97F] border-r-transparent border-b-transparent border-l-transparent" />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="LoopHarvest" className="h-10 w-10 object-contain rounded-full" />
+                <img src="/logo.png" alt="LoopHarvest" className="h-10 w-10 object-contain" />
               </div>
               <div className="flex flex-col items-center gap-1">
                 <h3 className="font-display text-sm font-black tracking-wider text-[#FFFFFF] uppercase">LoopHarvest</h3>

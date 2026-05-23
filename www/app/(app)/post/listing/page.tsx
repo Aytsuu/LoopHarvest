@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, ChevronLeft, Send, Scale, Info, Camera, CheckCircle2, Loader2, Upload, Smartphone } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Send, Scale, Info, Camera, CheckCircle2, Loader2, Upload, Smartphone, MessageSquare, Zap } from 'lucide-react';
 import { useCategories } from '@/components/common/CategoriesProvider';
 import { apiClient } from '@/lib/api/client';
 import type { CategorySlug } from '@/lib/categories';
@@ -22,9 +22,11 @@ export default function PostListingPage() {
   const [quantity, setQuantity] = React.useState<number>(1.0);
   const [unit, setUnit] = React.useState('kg');
   const [description, setDescription] = React.useState('');
+  const [pickupAddress, setPickupAddress] = React.useState('');
   const [selectedPhoto, setSelectedPhoto] = React.useState('');
   const [verificationState, setVerificationState] = React.useState<'idle' | 'uploading' | 'verified'>('idle');
   const [uploadError, setUploadError] = React.useState<string | null>(null);
+  const [claimType, setClaimType] = React.useState<'direct' | 'message'>('direct');
 
   React.useEffect(() => {
     if (categories.length === 0) {
@@ -131,6 +133,10 @@ export default function PostListingPage() {
         alert('Please fill in a short details description.');
         return;
       }
+      if (!pickupAddress.trim()) {
+        alert('Please add handoff pickup details so recipients know how to coordinate.');
+        return;
+      }
       if (!selectedPhoto) {
         alert('A real waste photo is required. Please take or upload one before continuing.');
         return;
@@ -150,8 +156,9 @@ export default function PostListingPage() {
         category_slug: category,
         quantity_kg: quantity,
         description,
+        claim_type: claimType,
         photo_url: selectedPhoto,
-        pickup_address: 'Pickup details shared after claim',
+        pickup_address: pickupAddress.trim(),
         city: 'San Francisco',
         country: 'United States',
       });
@@ -459,6 +466,77 @@ export default function PostListingPage() {
                   </div>
                 )}
               </div>
+
+              {/* Premium Claim Configuration */}
+              <div className="space-y-3 pt-4 border-t border-white/6">
+                <div className="flex items-center gap-1.5 text-[#A8D97F]">
+                  <MessageSquare size={14} />
+                  <span className="text-xs font-black uppercase tracking-wider">Handoff Coordination</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setClaimType('direct')}
+                    className={`flex flex-col gap-2 p-4 rounded-2xl border text-left transition-all relative overflow-hidden cursor-pointer ${
+                      claimType === 'direct'
+                        ? 'bg-[#2A4A10]/40 border-[#A8D97F] text-[#FFFFFF] shadow-lg shadow-[#A8D97F]/5'
+                        : 'bg-[#141414] border-white/6 text-[#A3A3A3] hover:border-white/12'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className={`p-1.5 rounded-lg ${claimType === 'direct' ? 'bg-[#A8D97F] text-[#1A3A05]' : 'bg-white/5 text-[#A3A3A3]'}`}>
+                        <Zap size={16} />
+                      </div>
+                      {claimType === 'direct' && (
+                        <span className="h-2 w-2 rounded-full bg-[#A8D97F] animate-pulse" />
+                      )}
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className={`block text-xs font-bold ${claimType === 'direct' ? 'text-[#FFFFFF]' : 'text-[#FFFFFF]/90'}`}>Direct Claim</span>
+                      <span className="block text-[10px] leading-relaxed text-[#A3A3A3]">Anyone can claim instantly without approval. Good for fast loops.</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setClaimType('message')}
+                    className={`flex flex-col gap-2 p-4 rounded-2xl border text-left transition-all relative overflow-hidden cursor-pointer ${
+                      claimType === 'message'
+                        ? 'bg-[#2A4A10]/40 border-[#A8D97F] text-[#FFFFFF] shadow-lg shadow-[#A8D97F]/5'
+                        : 'bg-[#141414] border-white/6 text-[#A3A3A3] hover:border-white/12'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className={`p-1.5 rounded-lg ${claimType === 'message' ? 'bg-[#A8D97F] text-[#1A3A05]' : 'bg-white/5 text-[#A3A3A3]'}`}>
+                        <MessageSquare size={16} />
+                      </div>
+                      {claimType === 'message' && (
+                        <span className="h-2 w-2 rounded-full bg-[#A8D97F] animate-pulse" />
+                      )}
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className={`block text-xs font-bold ${claimType === 'message' ? 'text-[#FFFFFF]' : 'text-[#FFFFFF]/90'}`}>Message Me First</span>
+                      <span className="block text-[10px] leading-relaxed text-[#A3A3A3]">Requires other users to message you first. Best for coordination.</span>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-[#A3A3A3]">Pickup details saved to listing</label>
+                  <textarea
+                    placeholder="e.g. Pickup at rear service gate, weekdays 2-5 PM. Message on arrival for bin handoff."
+                    value={pickupAddress}
+                    onChange={(e) => setPickupAddress(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0A] p-4 text-sm text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none resize-none leading-relaxed"
+                  />
+                  <p className="text-[10px] text-[#6F6F6F] leading-relaxed">
+                    This is stored in the real <span className="font-mono text-[#A3A3A3]">pickup_address</span> field. Share a meetup spot or handoff instructions, not private sensitive details.
+                  </p>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
@@ -487,9 +565,20 @@ export default function PostListingPage() {
                 <h3 className="font-display text-lg font-bold text-[#FFFFFF]">{title}</h3>
                 <p className="text-xs text-[#A3A3A3] leading-relaxed line-clamp-2">{description}</p>
                 
-                <div className="flex items-center gap-1.5 text-xs text-[#A8D97F] bg-[#2A4A10]/40 px-3 py-1.5 rounded-lg border border-[#A8D97F]/10 font-bold self-start inline-flex">
-                  <Scale size={14} />
-                  <span>Handoff weight: {quantity} {unit}</span>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <div className="flex items-center gap-1.5 text-xs text-[#A8D97F] bg-[#2A4A10]/40 px-3 py-1.5 rounded-lg border border-[#A8D97F]/10 font-bold">
+                    <Scale size={14} />
+                    <span>Handoff weight: {quantity} {unit}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-[#A8D97F] bg-[#2A4A10]/40 px-3 py-1.5 rounded-lg border border-[#A8D97F]/10 font-bold">
+                    {claimType === 'direct' ? <Zap size={14} /> : <MessageSquare size={14} />}
+                    <span>Claim Type: {claimType === 'direct' ? 'Direct Claim' : 'Message First'}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/6 bg-[#0A0A0A] px-3 py-3">
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-[#A8D97F]">Pickup Details</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-[#A3A3A3]">{pickupAddress}</span>
                 </div>
               </div>
             </div>

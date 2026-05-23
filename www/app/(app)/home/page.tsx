@@ -170,7 +170,8 @@ export default function HomeFeed() {
       listing.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       listing.city.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory ? listing.category === selectedCategory : true;
-    return matchesSearch && matchesCategory;
+    const isOpen = listing.status === "open";
+    return matchesSearch && matchesCategory && isOpen;
   });
 
   const filteredRequests = requests.filter((request) => {
@@ -179,7 +180,8 @@ export default function HomeFeed() {
       request.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.city.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory ? request.category === selectedCategory : true;
-    return matchesSearch && matchesCategory;
+    const isOpen = request.status === "open";
+    return matchesSearch && matchesCategory && isOpen;
   });
 
   const matches = activeTab === "listings"

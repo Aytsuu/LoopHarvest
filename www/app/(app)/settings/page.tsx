@@ -26,10 +26,6 @@ import Appearance from '@/components/settings/appearance';
 import SDG from '@/components/settings/sdg';
 import Billing from '@/components/settings/billing';
 
-function buildAvatarUrl(seed: string) {
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
-}
-
 function formatJoinedLabel(value: string | null | undefined) {
   if (!value) {
     return 'Joined recently';
@@ -43,20 +39,49 @@ function formatJoinedLabel(value: string | null | undefined) {
   return `Joined ${parsed.toLocaleString('en-US', { month: 'short', year: 'numeric' })}`;
 }
 
-function extractAvatarSeed(avatarUrl: string | null | undefined) {
-  if (!avatarUrl || !avatarUrl.includes('seed=')) {
-    return null;
+function isLegacyCartoonAvatarUrl(value: string | null | undefined) {
+  if (!value) {
+    return false;
   }
 
-  return avatarUrl.split('seed=')[1]?.split('&')[0] ?? null;
+  return value.includes('api.dicebear.com') || value.includes('/avataaars/');
+}
+
+function extractProviderAvatarUrl(sessionUser: Awaited<ReturnType<ReturnType<typeof createClient>['auth']['getUser']>>['data']['user']) {
+  const identities = (sessionUser as { identities?: Array<{ identity_data?: Record<string, unknown> | null }> } | null)?.identities ?? [];
+  for (const identity of identities) {
+    const identityData = identity.identity_data;
+    if (!identityData) {
+      continue;
+    }
+
+    const avatarUrl = identityData.avatar_url;
+    if (typeof avatarUrl === 'string' && avatarUrl.trim()) {
+      return avatarUrl;
+    }
+
+    const picture = identityData.picture;
+    if (typeof picture === 'string' && picture.trim()) {
+      return picture;
+    }
+  }
+
+  const metadataAvatarUrl = sessionUser?.user_metadata?.avatar_url;
+  return typeof metadataAvatarUrl === 'string' && metadataAvatarUrl.trim() ? metadataAvatarUrl : null;
 }
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = React.useState<'listings' | 'requests'>('listings');
+  const [activeTab, setActiveTab] = React.useState<'listings' | 'requests' | 'claims'>('listings');
 
   // Form hydration state indicator
   const [isHydrated, setIsHydrated] = React.useState(false);
+
+  // Community-wide helper to trigger layout toasts
+  const triggerNotification = (message: string) => {
+    const event = new CustomEvent('post-created', { detail: message });
+    window.dispatchEvent(event);
+  };
 
   // Settings Forms & Inputs States
   const [displayName, setDisplayName] = React.useState('');
@@ -66,7 +91,7 @@ export default function ProfilePage() {
   const [postalCode, setPostalCode] = React.useState('');
   const [country, setCountry] = React.useState('');
   const [bio, setBio] = React.useState('');
-  const [avatarSeed, setAvatarSeed] = React.useState('CurrentUser');
+  const [persistedAvatarUrl, setPersistedAvatarUrl] = React.useState<string | null>(null);
 
   // Queries
   const { data: user } = useQuery({
@@ -75,14 +100,12 @@ export default function ProfilePage() {
       const dbUser = await apiClient.getCurrentUser();
       const supabase = createClient();
       const { data: { user: sessionUser } } = await supabase.auth.getUser();
-      const metadata = sessionUser?.user_metadata ?? {};
+      const providerAvatarUrl = extractProviderAvatarUrl(sessionUser);
       
       return {
         ...dbUser,
-        bio: typeof metadata.bio === 'string' ? metadata.bio : '',
-        stateProv: (typeof metadata.state_region === 'string' && metadata.state_region.trim()) || '',
-        postalCode: (typeof metadata.postal_code === 'string' && metadata.postal_code.trim()) || '',
-        createdAt: sessionUser?.created_at ?? null,
+        createdAt: dbUser.created_at ?? sessionUser?.created_at ?? null,
+        providerAvatarUrl,
       };
     },
   });
@@ -120,6 +143,13 @@ export default function ProfilePage() {
     );
   }, [user, requestRows]);
 
+  // Dynamically compute listings claimed by the current user
+  const claimedListings = React.useMemo(() => {
+    if (!user || !listingRows) return [];
+    const mapped = listingRows.map(toListingCardModel);
+    return mapped.filter((listing) => listing.claimedBy === user.id);
+  }, [user, listingRows]);
+
   // Dynamically calculate user's specific impact stats
   const stats = React.useMemo<UserStats>(() => {
     if (!impactSummary) {
@@ -146,15 +176,48 @@ export default function ProfilePage() {
       setEmail(user.email || '');
       setCity(user.city || '');
       setCountry(user.country || '');
-      setStateProv(user.stateProv || '');
-      setPostalCode(user.postalCode || '');
+      setStateProv(user.state_region || '');
+      setPostalCode(user.postal_code || '');
       setBio(user.bio || '');
-      setAvatarSeed(extractAvatarSeed(user.avatar_url) || user.id || 'CurrentUser');
+      setPersistedAvatarUrl(
+        isLegacyCartoonAvatarUrl(user.avatar_url) && user.providerAvatarUrl
+          ? user.providerAvatarUrl
+          : user.avatar_url
+      );
       setIsHydrated(true);
     }, 0);
 
     return () => clearTimeout(timer);
   }, [user, isHydrated]);
+
+  const providerAvatarRecoveryStartedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!user?.providerAvatarUrl || !isLegacyCartoonAvatarUrl(user.avatar_url) || providerAvatarRecoveryStartedRef.current) {
+      return;
+    }
+
+    providerAvatarRecoveryStartedRef.current = true;
+    setPersistedAvatarUrl(user.providerAvatarUrl);
+
+    void apiClient.updateCurrentUser({
+      email: user.email,
+      display_name: user.display_name || user.email.split('@')[0] || 'LoopHarvest User',
+      avatar_url: user.providerAvatarUrl,
+      city: user.city,
+      state_region: user.state_region,
+      postal_code: user.postal_code,
+      country: user.country,
+      bio: user.bio,
+    }).then(() => {
+      void queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
+      triggerNotification('Restored your provider profile image.');
+    }).catch(() => {
+      providerAvatarRecoveryStartedRef.current = false;
+    });
+  }, [queryClient, user]);
 
   // Mutations
   const claimMutation = useMutation({
@@ -284,64 +347,36 @@ export default function ProfilePage() {
   // 5. Billing & Subscription Tiers
   const [isPremium, setIsPremium] = React.useState(false);
 
-  // Community-wide helper to trigger layout toasts
-  const triggerNotification = (message: string) => {
-    const event = new CustomEvent('post-created', { detail: message });
-    window.dispatchEvent(event);
-  };
-
   const saveProfileMutation = useMutation({
     mutationFn: async () => {
-      const supabase = createClient();
       const trimmedDisplayName = displayName.trim();
       const trimmedEmail = email.trim();
       const trimmedBio = bio.trim();
-      const trimmedSeed = avatarSeed.trim() || user?.id || 'CurrentUser';
       const trimmedCity = city.trim();
       const trimmedCountry = country.trim();
       const trimmedState = stateProv.trim();
       const trimmedPostal = postalCode.trim();
+      const nextAvatarUrl = persistedAvatarUrl ?? user?.avatar_url ?? "";
 
-      const updatePayload: {
-        email?: string;
-        data: {
-          avatar_seed: string;
-          avatar_url: string;
-          bio: string;
-          city: string | null;
-          country: string | null;
-          state_region: string | null;
-          postal_code: string | null;
-          display_name: string;
-        };
-      } = {
-        data: {
-          display_name: trimmedDisplayName || trimmedEmail.split('@')[0] || 'LoopHarvest User',
-          avatar_seed: trimmedSeed,
-          avatar_url: buildAvatarUrl(trimmedSeed),
-          city: trimmedCity || null,
-          country: trimmedCountry || null,
-          state_region: trimmedState || null,
-          postal_code: trimmedPostal || null,
-          bio: trimmedBio,
-        },
-      };
-
-      if (trimmedEmail && trimmedEmail !== user?.email) {
-        updatePayload.email = trimmedEmail;
-      }
-
-      const { error } = await supabase.auth.updateUser(updatePayload);
-      if (error) {
-        throw error;
-      }
-      return updatePayload;
+      return apiClient.updateCurrentUser({
+        email: trimmedEmail,
+        display_name: trimmedDisplayName || trimmedEmail.split('@')[0] || 'LoopHarvest User',
+        avatar_url: nextAvatarUrl,
+        city: trimmedCity || null,
+        state_region: trimmedState || null,
+        postal_code: trimmedPostal || null,
+        country: trimmedCountry || null,
+        bio: trimmedBio || null,
+      });
     },
-    onSuccess: (payload) => {
+    onSuccess: (updatedUser) => {
+      setPersistedAvatarUrl(updatedUser.avatar_url);
       void queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
       triggerNotification(
-        payload.email
-          ? 'Account profile saved. Check your email if Supabase requires reconfirmation.'
+        updatedUser.email !== user?.email
+          ? 'Account profile saved. If Supabase requires email reconfirmation, check your inbox.'
           : 'Account profile settings saved successfully!'
       );
     },
@@ -498,15 +533,17 @@ export default function ProfilePage() {
       // 1. ORIGINAL PROFILE & STATISTICS VIEW
       case 'profile-stats': {
         const computedLocation = [city, stateProv, country].filter(Boolean).join(', ') || 'No location specified';
+        const avatarUrl = persistedAvatarUrl ?? user?.avatar_url ?? "https://www.gravatar.com/avatar/?d=mp&s=256";
         return (
           <MyProfileStats
             stats={stats}
             listings={listings}
             requests={requests}
+            claimedListings={claimedListings}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             displayName={displayName}
-            avatarSeed={avatarSeed}
+            avatarUrl={avatarUrl}
             isPremium={isPremium}
             joinedLabel={formatJoinedLabel(user?.createdAt)}
             location={computedLocation}
@@ -519,6 +556,7 @@ export default function ProfilePage() {
 
       // 2. ACCOUNT PROFILE DETAILS EDIT
       case 'account-details':
+        const avatarPreviewUrl = persistedAvatarUrl ?? user?.avatar_url ?? "https://www.gravatar.com/avatar/?d=mp&s=256";
         return (
           <Account
             displayName={displayName}
@@ -535,8 +573,8 @@ export default function ProfilePage() {
             setCountry={setCountry}
             bio={bio}
             setBio={setBio}
-            avatarSeed={avatarSeed}
-            setAvatarSeed={setAvatarSeed}
+            avatarPreviewUrl={avatarPreviewUrl}
+            savePending={saveProfileMutation.isPending}
             handleSaveProfile={handleSaveProfile}
           />
         );

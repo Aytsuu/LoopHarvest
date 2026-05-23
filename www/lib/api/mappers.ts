@@ -1,4 +1,4 @@
-import type { ApiImpactSummary, ApiListing, ApiRequest, Listing, RequestItem, UserStats } from "@/lib/api/types";
+import type { ApiImpactSummary, ApiListing, ApiRequest, ApiUser, Listing, RequestItem, UserStats } from "@/lib/api/types";
 
 function formatTimeAgo(value: string) {
   const then = new Date(value).getTime();
@@ -29,17 +29,30 @@ export function toListingCardModel(listing: ApiListing): Listing {
     unit: "kg",
     distance: 0,
     city: listing.city,
+    pickupAddress: listing.pickup_address,
     timeAgo: formatTimeAgo(listing.created_at),
     donorName: listing.donor_name ?? "LoopHarvest Member",
     donorAvatar:
       listing.donor_avatar_url ??
       "https://api.dicebear.com/7.x/avataaars/svg?seed=LoopHarvestMember",
-    description: listing.description ?? "",
+    description: (listing.description ?? "").replace(/\[claim_type:[^\]]+\]/g, "").trim(),
     status: listing.status,
     photo:
       listing.photo_url ??
       "https://images.unsplash.com/photo-1557844352-761f2565b576?q=80&w=600&auto=format&fit=crop",
+    claimType: listing.claim_type,
+    donorId: listing.donor_id,
+    claimedBy: listing.claimed_by,
   };
+}
+
+export function toUserAvatarUrl(user: Pick<ApiUser, "avatar_url" | "display_name" | "email" | "id">) {
+  return (
+    user.avatar_url ??
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+      user.display_name ?? user.email ?? user.id,
+    )}`
+  );
 }
 
 export function toRequestCardModel(request: ApiRequest): RequestItem {

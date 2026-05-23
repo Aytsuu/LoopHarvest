@@ -14,18 +14,15 @@ import type { Listing, RequestItem, UserStats } from '@/lib/api/types';
 import ListingCard from '@/components/cards/ListingCard';
 import RequestCard from '@/components/cards/RequestCard';
 
-function buildAvatarUrl(seed: string) {
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
-}
-
 export interface MyProfileStatsProps {
   stats: UserStats;
   listings: Listing[];
   requests: RequestItem[];
-  activeTab: 'listings' | 'requests';
-  setActiveTab: (tab: 'listings' | 'requests') => void;
+  claimedListings: Listing[];
+  activeTab: 'listings' | 'requests' | 'claims';
+  setActiveTab: (tab: 'listings' | 'requests' | 'claims') => void;
   displayName: string;
-  avatarSeed: string;
+  avatarUrl: string;
   isPremium: boolean;
   joinedLabel: string;
   location: string;
@@ -38,10 +35,11 @@ export default function MyProfileStats({
   stats,
   listings,
   requests,
+  claimedListings = [],
   activeTab,
   setActiveTab,
   displayName,
-  avatarSeed,
+  avatarUrl,
   isPremium,
   joinedLabel,
   location,
@@ -53,7 +51,7 @@ export default function MyProfileStats({
   const userLevel = Math.floor(stats.loopPoints / 100) + 1;
   const currentLevelXP = stats.loopPoints % 100;
   const xpProgressPercent = currentLevelXP; // out of 100
-
+  console.log(avatarUrl)
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header profile intro */}
@@ -63,7 +61,7 @@ export default function MyProfileStats({
         <div className="relative shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={buildAvatarUrl(avatarSeed)}
+            src={avatarUrl}
             alt="Avatar"
             className="h-24 w-24 rounded-full border-4 border-[#2A4A10] bg-[#141414]"
           />
@@ -165,6 +163,16 @@ export default function MyProfileStats({
             >
               Your Requests ({requests.length})
             </button>
+            <button
+              onClick={() => setActiveTab('claims')}
+              className={`text-sm font-bold pb-2 transition-all border-b-2 relative ${
+                activeTab === 'claims' 
+                  ? 'border-[#A8D97F] text-[#A8D97F]' 
+                  : 'border-transparent text-[#A3A3A3] hover:text-[#FFFFFF]'
+              }`}
+            >
+              Your Claims ({claimedListings.length})
+            </button>
           </div>
           <span className="text-[11px] text-[#A3A3A3] font-bold hidden sm:inline">Only you can view active publishes</span>
         </div>
@@ -181,7 +189,7 @@ export default function MyProfileStats({
               You haven&apos;t posted any waste materials yet. Select Create Post to get started.
             </div>
           )
-        ) : (
+        ) : activeTab === 'requests' ? (
           requests.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {requests.map((r) => (
@@ -191,6 +199,18 @@ export default function MyProfileStats({
           ) : (
             <div className="py-12 text-center text-xs text-[#525252] bg-[#1B1B1B] border border-white/6 rounded-2xl">
               You haven&apos;t requested any scraps yet.
+            </div>
+          )
+        ) : (
+          claimedListings.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {claimedListings.map((l) => (
+                <ListingCard key={l.id} listing={l} onClaim={handleClaim} />
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 text-center text-xs text-[#525252] bg-[#1B1B1B] border border-white/6 rounded-2xl">
+              You haven&apos;t claimed any waste materials yet. Browse available scraps to start harvesting!
             </div>
           )
         )}
