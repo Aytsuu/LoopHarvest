@@ -6,6 +6,12 @@ import { buildRequestUrl } from "@/lib/http/request-origin";
 const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/auth"];
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.next({
+      request,
+    });
+  }
+
   let response = NextResponse.next({
     request,
   });
@@ -14,6 +20,7 @@ export async function proxy(request: NextRequest) {
   const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   let user = null;
+  let hasSurveyRecord: boolean | null = null;
   if (supabaseUrl && supabasePublishableKey) {
     try {
       const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
@@ -38,6 +45,19 @@ export async function proxy(request: NextRequest) {
 
       const { data } = await supabase.auth.getClaims();
       user = data?.claims ?? null;
+      const userId = typeof user?.sub === "string" ? user.sub : null;
+      if (userId) {
+        const { data: surveyRows, error: surveyError } = await supabase
+          .from("user_surveys")
+          .select("user_id")
+          .eq("user_id", userId)
+          .limit(1);
+        if (surveyError) {
+          console.error("Supabase survey lookup error in proxy middleware:", surveyError);
+        } else {
+          hasSurveyRecord = Array.isArray(surveyRows) && surveyRows.length > 0;
+        }
+      }
     } catch (e) {
       console.error("Supabase auth error in proxy middleware:", e);
     }
@@ -64,14 +84,25 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthenticated && isPublicPath) {
+  if (isAuthenticated && pathname === "/survey" && hasSurveyRecord === true) {
     const homeUrl = buildRequestUrl(request, "/home");
     return NextResponse.redirect(homeUrl);
+  }
+
+  if (isAuthenticated && pathname !== "/survey" && !isPublicPath && hasSurveyRecord === false) {
+    const surveyUrl = buildRequestUrl(request, "/survey");
+    return NextResponse.redirect(surveyUrl);
+  }
+
+  if (isAuthenticated && isPublicPath) {
+    const targetPath = hasSurveyRecord === false ? "/survey" : "/home";
+    const appUrl = buildRequestUrl(request, targetPath);
+    return NextResponse.redirect(appUrl);
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

@@ -8,6 +8,8 @@ import type {
   ApiImpactSummary,
   ApiListing,
   ApiRequest,
+  ApiSurvey,
+  ApiSurveyPayload,
   ApiUser,
 } from "@/lib/api/types";
 
@@ -42,7 +44,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
   });
 
-  const payload = (await response.json()) as ApiEnvelope<T> | { error?: { message?: string } };
+  const payload = await parseApiPayload<T>(response);
   if (!response.ok || !("data" in payload)) {
     const message =
       ("error" in payload && payload.error?.message) || "The request could not be completed.";
@@ -56,7 +58,7 @@ async function publicRequest<T>(path: string): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     cache: "no-store",
   });
-  const payload = (await response.json()) as ApiEnvelope<T> | { error?: { message?: string } };
+  const payload = await parseApiPayload<T>(response);
   if (!response.ok || !("data" in payload)) {
     const message =
       ("error" in payload && payload.error?.message) || "The request could not be completed.";
@@ -64,6 +66,17 @@ async function publicRequest<T>(path: string): Promise<T> {
   }
 
   return payload.data;
+}
+
+async function parseApiPayload<T>(
+  response: Response,
+): Promise<ApiEnvelope<T> | { error?: { message?: string } }> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new Error("The API returned an unexpected non-JSON response.");
+  }
+
+  return (await response.json()) as ApiEnvelope<T> | { error?: { message?: string } };
 }
 
 export const apiClient = {
@@ -149,5 +162,14 @@ export const apiClient = {
   },
   getImpactSummary() {
     return publicRequest<ApiImpactSummary>("/impact/summary");
+  },
+  getCurrentUserSurvey() {
+    return request<ApiSurvey | null>("/survey/me");
+  },
+  saveCurrentUserSurvey(payload: ApiSurveyPayload) {
+    return request<ApiSurvey>("/survey/me", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
   },
 };

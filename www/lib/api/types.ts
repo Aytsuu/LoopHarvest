@@ -65,6 +65,31 @@ export interface ApiImpactSummary {
   active_requests: number;
 }
 
+export interface ApiSurveyNotifications {
+  channels: {
+    push: boolean;
+    email: boolean;
+  };
+  frequency: "instant" | "daily" | "weekly";
+}
+
+export interface ApiSurveyPayload {
+  purpose: string[];
+  role: "donor" | "recipient" | "both" | "observer";
+  waste_types: string[];
+  frequency: "daily" | "weekly" | "monthly" | "seasonal";
+  location_radius: number;
+  goals: string[];
+  ai_consent: Record<string, boolean>;
+  notifications: ApiSurveyNotifications;
+}
+
+export interface ApiSurvey extends ApiSurveyPayload {
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 import type { CategorySlug } from "@/lib/categories";
 
 export interface ApiCategory {

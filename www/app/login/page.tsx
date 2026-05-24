@@ -60,7 +60,8 @@ function LoginPageContent() {
         throw signInError;
       }
 
-      router.replace('/home');
+      const next = searchParams.get('next') || '/home';
+      router.replace(next);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in right now.');
@@ -74,10 +75,11 @@ function LoginPageContent() {
 
     try {
       const supabase = createClient();
+      const next = searchParams.get('next') || '/home';
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: buildAuthCallbackUrl('/home'),
+          redirectTo: buildAuthCallbackUrl(next),
         },
       });
 
