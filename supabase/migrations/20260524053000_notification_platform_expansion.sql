@@ -3,7 +3,7 @@ alter table api.users
 
 alter table api.users
   add constraint users_role_check
-  check (role in ('donor', 'recipient', 'both', 'org', 'admin'));
+  check (role in ('customer', 'admin'));
 
 alter table api.notification_preferences
   add column if not exists quiet_hours_enabled boolean not null default false,
