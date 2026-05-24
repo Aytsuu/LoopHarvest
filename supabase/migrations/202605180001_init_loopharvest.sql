@@ -16,7 +16,7 @@ create table if not exists public.users (
   email text unique not null,
   display_name text,
   avatar_url text,
-  role text not null default 'both' check (role in ('donor', 'recipient', 'both', 'org')),
+  role text not null default 'customer' check (role in ('customer', 'admin')),
   location_geo geography(point, 4326),
   city text,
   country text,

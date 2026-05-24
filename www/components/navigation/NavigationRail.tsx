@@ -2,8 +2,10 @@
 
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
-import { mockStore } from '@/lib/mockStore';
+import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { countUnreadThreads, fetchChatThreads } from '@/lib/chat';
+import { useNotificationClient } from '@/components/common/NotificationClientProvider';
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 
 interface NavigationRailProps {
   onPostClick: () => void;
@@ -15,8 +17,11 @@ interface NavigationRailProps {
 export default function NavigationRail({ onPostClick, onSignOutClick, isCollapsed = false, onToggleCollapse }: NavigationRailProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const [supabase] = React.useState(() => createSupabaseClient());
+  const { unreadCount } = useNotificationClient();
 
   const [mounted, setMounted] = React.useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = React.useState(0);
 
   React.useEffect(() => {
     setTimeout(() => {
@@ -24,36 +29,129 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
     }, 0);
   }, []);
 
-  const unreadCount = React.useMemo(() => {
-    if (!mounted) {
-      return 0; // Don't show badge during SSR/hydration to prevent mismatch
+  const updateCount = React.useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setChatUnreadCount(0);
+        return;
+      }
+
+      const threads = await fetchChatThreads(supabase, user.id);
+      setChatUnreadCount(countUnreadThreads(threads, user.id));
+    } catch {
+      setChatUnreadCount(0);
     }
-    // Re-evaluate on route changes
-    if (pathname) {}
-    return mockStore.getNotifications().filter(n => n.status === 'unread').length;
-  }, [pathname, mounted]);
+  }, [supabase]);
+
+  React.useEffect(() => {
+    if (mounted) {
+      const timeout = window.setTimeout(() => {
+        void updateCount();
+      }, 0);
+
+      window.addEventListener('notifications-updated', updateCount);
+      window.addEventListener('post-created', updateCount);
+      
+      return () => {
+        window.clearTimeout(timeout);
+        window.removeEventListener('notifications-updated', updateCount);
+        window.removeEventListener('post-created', updateCount);
+      };
+    }
+  }, [mounted, updateCount]);
+
+  React.useEffect(() => {
+    if (mounted) {
+      const timeout = window.setTimeout(() => {
+        void updateCount();
+      }, 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [pathname, mounted, updateCount]);
+
+  React.useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+
+    let isActive = true;
+    let cleanup = () => {};
+
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!isActive || !user) {
+        return;
+      }
+
+      const refresh = () => {
+        void updateCount();
+      };
+
+      const participantAChannel = supabase
+        .channel(`nav-chat-a-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'api',
+            table: 'chat_threads',
+            filter: `participant_a_id=eq.${user.id}`,
+          },
+          refresh,
+        )
+        .subscribe();
+
+      const participantBChannel = supabase
+        .channel(`nav-chat-b-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'api',
+            table: 'chat_threads',
+            filter: `participant_b_id=eq.${user.id}`,
+          },
+          refresh,
+        )
+        .subscribe();
+
+      cleanup = () => {
+        void supabase.removeChannel(participantAChannel);
+        void supabase.removeChannel(participantBChannel);
+      };
+    });
+
+    return () => {
+      isActive = false;
+      cleanup();
+    };
+  }, [mounted, supabase, updateCount]);
 
   const items = [
     { label: 'Home Feed', icon: Home, route: '/home' },
     { label: 'Browse', icon: Search, route: '/browse' },
     { label: 'Impact Dashboard', icon: BarChart2, route: '/impact' },
     { label: 'Notifications', icon: Bell, route: '/notifications', badge: unreadCount },
+    { label: 'Messages', icon: MessageSquare, route: '/chat', badge: chatUnreadCount },
     { label: 'Settings', icon: Settings, route: '/settings' }
   ];
 
   return (
     <aside 
-      className={`fixed bottom-0 left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/6 bg-[#141414] p-4 text-[#A8AA98] md:flex transition-all duration-300 ease-in-out ${
+      className={`fixed bottom-0 left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/6 bg-[#141414] p-4 text-[#A3A3A3] md:flex transition-all duration-300 ease-in-out ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}
     >
       {/* Brand Header */}
       <div 
-        className={`group relative mb-8 flex items-center cursor-pointer px-3 py-2 ${isCollapsed ? 'justify-center px-0' : ''}`}
+        className={`group relative mb-8 flex items-center cursor-pointer py-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}
         onClick={() => router.push('/home')}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 shrink-0 object-contain rounded-full" />
+        <img src="/logo.png" alt="LoopHarvest" className="h-8 w-8 shrink-0 object-contain" />
         <span 
           className={`font-display text-2xl font-extrabold tracking-tight text-[#A8D97F] select-none transition-all duration-300 origin-left overflow-hidden ${
             isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-2'
@@ -63,7 +161,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
         </span>
 
         {isCollapsed && (
-          <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
+          <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
             LoopHarvest
             {/* Subtle indicator triangle arrow */}
             <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 h-2 w-2 rotate-45 bg-[#222222] border-l border-b border-white/10" />
@@ -90,7 +188,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
         </span>
 
         {isCollapsed && (
-          <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
+          <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
             Create Post
             <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 h-2 w-2 rotate-45 bg-[#222222] border-l border-b border-white/10" />
           </div>
@@ -108,7 +206,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
               className={`group relative flex items-center rounded-xl py-3 text-sm font-semibold transition-all duration-300 ${
                 isActive
                   ? 'bg-[#2A4A10] text-[#A8D97F]'
-                  : 'hover:bg-white/4 hover:text-[#E8EAD8]'
+                  : 'hover:bg-white/4 hover:text-[#FFFFFF]'
               } ${
                 isCollapsed 
                   ? 'w-12 justify-center px-0 mx-auto' 
@@ -136,7 +234,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
               </span>
 
               {isCollapsed && (
-                <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
+                <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
                   {item.label}
                   <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 h-2 w-2 rotate-45 bg-[#222222] border-l border-b border-white/10" />
                 </div>
@@ -167,7 +265,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
           </span>
 
           {isCollapsed && (
-            <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
+            <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
               Sign out
               <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 h-2 w-2 rotate-45 bg-[#222222] border-l border-b border-white/10" />
             </div>
@@ -177,7 +275,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
-            className={`group relative flex items-center rounded-xl hover:bg-white/4 hover:text-[#E8EAD8] transition-all duration-300 ${
+            className={`group relative flex items-center rounded-xl hover:bg-white/4 hover:text-[#FFFFFF] transition-all duration-300 ${
               isCollapsed 
                 ? 'h-11 w-12 justify-center px-0 mx-auto' 
                 : 'h-11 w-full px-4 gap-4'
@@ -193,7 +291,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
             )}
 
             {isCollapsed && (
-              <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
+              <div className="pointer-events-none absolute left-full ml-4 z-50 rounded-lg bg-[#222222] border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] opacity-0 scale-95 translate-x-[-4px] group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200 shadow-xl whitespace-nowrap">
                 Expand sidebar
                 <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 h-2 w-2 rotate-45 bg-[#222222] border-l border-b border-white/10" />
               </div>

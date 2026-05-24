@@ -1,28 +1,99 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Bell, Trash2, CheckCircle2, Inbox, Calendar, MessageSquare, ArrowRight } from 'lucide-react';
-import { mockStore, NotificationItem } from '@/lib/mockStore';
-import { catMap } from '@/lib/categories';
+import { useNotificationClient } from '@/components/common/NotificationClientProvider';
+import { notificationService } from '@/lib/api/notifications';
+import { apiClient } from '@/lib/api/client';
+import type { NotificationItem } from '@/lib/api/types';
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>(() => mockStore.getNotifications());
+  const router = useRouter();
+  const { refreshUnreadCount } = useNotificationClient();
+  const [supabase] = React.useState(() => createSupabaseClient());
 
-  const refreshData = React.useCallback(() => {
-    setNotifications(mockStore.getNotifications());
-  }, []);
+  // Fetch current user using shared query key
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: apiClient.getCurrentUser,
+  });
+  const currentUserId = currentUser?.id ?? null;
 
-  const handleMarkAllRead = () => {
-    mockStore.markAllNotificationsAsRead();
-    refreshData();
-    // Dispatch refresh event
+  // Fetch notifications using dynamic query cache
+  const { data: notifications = [], refetch: refetchNotifications, isLoading } = useQuery({
+    queryKey: ['notifications', currentUserId],
+    queryFn: async () => {
+      if (!currentUserId) return [];
+      return notificationService.getNotifications(supabase, currentUserId);
+    },
+    enabled: !!currentUserId,
+  });
+
+  // Automatically mark unread alerts as read when landing on page
+  React.useEffect(() => {
+    if (!currentUserId || notifications.length === 0) {
+      return;
+    }
+
+    const unreadItems = notifications.filter((item) => item.status === 'unread');
+    if (unreadItems.length > 0) {
+      void (async () => {
+        await notificationService.markAllNotificationsAsRead(supabase, currentUserId);
+        void refetchNotifications();
+        void refreshUnreadCount();
+      })();
+    }
+  }, [currentUserId, notifications, refetchNotifications, refreshUnreadCount, supabase]);
+
+  // Realtime active subscription listener
+  React.useEffect(() => {
+    if (!currentUserId) {
+      return;
+    }
+
+    return notificationService.subscribeToNotifications(supabase, currentUserId, () => {
+      void (async () => {
+        await refetchNotifications();
+        if (document.visibilityState === 'visible') {
+          await notificationService.markAllNotificationsAsRead(supabase, currentUserId);
+          await refetchNotifications();
+          await refreshUnreadCount();
+        }
+      })();
+    });
+  }, [currentUserId, refetchNotifications, refreshUnreadCount, supabase]);
+
+  const handleMarkAllRead = React.useCallback(async () => {
+    if (!currentUserId) {
+      return;
+    }
+
+    await notificationService.markAllNotificationsAsRead(supabase, currentUserId);
+    await refetchNotifications();
+    await refreshUnreadCount();
     window.dispatchEvent(new CustomEvent('post-created', { detail: 'All notifications marked as read!' }));
-  };
+  }, [currentUserId, refetchNotifications, refreshUnreadCount, supabase]);
 
-  const handleDelete = (id: string) => {
-    mockStore.deleteNotification(id);
-    refreshData();
-  };
+  const handleDelete = React.useCallback(async (id: string) => {
+    await notificationService.deleteNotification(supabase, id);
+    await refetchNotifications();
+    await refreshUnreadCount();
+  }, [refetchNotifications, refreshUnreadCount, supabase]);
+
+  const handleOpenNotification = React.useCallback(async (notification: NotificationItem) => {
+    if (notification.status === 'unread') {
+      await notificationService.markNotificationRead(supabase, notification.id);
+      await refetchNotifications();
+      await refreshUnreadCount();
+    }
+
+    if (notification.actionUrl) {
+      router.push(notification.actionUrl);
+    }
+  }, [refetchNotifications, refreshUnreadCount, router, supabase]);
 
   const getIconForType = (type: NotificationItem['type']) => {
     switch (type) {
@@ -31,21 +102,31 @@ export default function NotificationsPage() {
       case 'listing_claimed':
         return <CheckCircle2 size={16} className="text-[#E8A838]" />;
       case 'pickup_confirmed':
-        return <Calendar size={16} className="text-[#4ECDC4]" />;
+        return <Calendar size={16} className="text-[#A8D97F]" />;
       case 'match_found':
         return <Inbox size={16} className="text-[#A8D97F]" />;
       case 'review_received':
-        return <MessageSquare size={16} className="text-[#7EF8EF]" />;
+        return <MessageSquare size={16} className="text-[#A8D97F]" />;
       default:
-        return <Bell size={16} className="text-[#A8AA98]" />;
+        return <Bell size={16} className="text-[#A3A3A3]" />;
     }
   };
 
+  const getAccentColor = (notification: NotificationItem) => {
+    if (notification.type === 'listing_claimed') return '#E8A838';
+    if (notification.type === 'message_received') return '#7DD3FC';
+    if (notification.type === 'request_fulfilled') return '#A8D97F';
+    if (notification.type === 'match_found') return '#A8D97F';
+    if (notification.category === 'matching') return '#A8D97F';
+    if (notification.category === 'transactional') return '#E8A838';
+    return '#A3A3A3';
+  };
+
   return (
-    <main className="flex-1 bg-[#0A0A0A] text-[#E8EAD8] min-h-screen">
+    <main className="flex-1 bg-[#0A0A0A] text-[#FFFFFF] min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6 pb-24 md:pb-8">
         <div className="flex items-center justify-between gap-4">
-          <h1 className="font-display text-xl font-bold tracking-tight text-[#E8EAD8]">
+          <h1 className="font-display text-xl font-bold tracking-tight text-[#FFFFFF]">
             Notification Center
           </h1>
           {notifications.some(n => n.status === 'unread') ? (
@@ -59,29 +140,41 @@ export default function NotificationsPage() {
         </div>
         
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-[#E8EAD8]">
+          <h2 className="font-display text-lg font-bold text-[#FFFFFF]">
             Recent Alerts
           </h2>
-          <span className="text-xs font-mono text-[#A8AA98]">
+          <span className="text-xs font-mono text-[#A3A3A3]">
             {notifications.filter(n => n.status === 'unread').length} unread
           </span>
         </div>
 
-        {notifications.length > 0 ? (
+        {isLoading ? (
+          <div className="rounded-3xl border border-white/6 bg-[#141414] p-6 text-center text-sm text-[#A3A3A3]">
+            Loading notifications...
+          </div>
+        ) : notifications.length > 0 ? (
           <div className="space-y-3">
             {notifications.map((notif, idx) => {
-              const catColor = notif.category ? (catMap[notif.category]?.color || '#A8D97F') : '#A8AA98';
+              const catColor = getAccentColor(notif);
               const isUnread = notif.status === 'unread';
 
               return (
                 <div
                   key={notif.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => void handleOpenNotification(notif)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      void handleOpenNotification(notif);
+                    }
+                  }}
                   style={{ 
-                    borderLeftColor: isUnread ? catColor : 'rgba(255,255,255,0.06)',
                     animationDelay: `${idx * 50}ms`,
                     animationFillMode: 'both'
                   }}
-                  className={`group relative flex items-start gap-4 rounded-xl border border-white/6 p-4 border-l-4 transition-colors animate-fade-in-up ${
+                  className={`group relative flex w-full items-start gap-4 rounded-xl border border-white/6 p-4 text-left transition-colors animate-fade-in-up ${
                     isUnread ? 'bg-[#141414]' : 'bg-[#0E0E0E]/40 opacity-70'
                   }`}
                 >
@@ -96,22 +189,26 @@ export default function NotificationsPage() {
                   {/* Copy details */}
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className={`text-sm font-bold text-[#E8EAD8] truncate ${isUnread ? '' : 'font-semibold'}`}>
+                      <h4 className={`text-sm font-bold text-[#FFFFFF] truncate ${isUnread ? '' : 'font-semibold'}`}>
                         {notif.title}
                       </h4>
-                      <span className="font-mono text-[9px] text-[#A8AA98] shrink-0 bg-white/4 px-1.5 py-0.5 rounded">
+                      <span className="font-mono text-[9px] text-[#A3A3A3] shrink-0 bg-white/4 px-1.5 py-0.5 rounded">
                         {notif.time}
                       </span>
                     </div>
-                    <p className="text-xs text-[#A8AA98] leading-relaxed pr-6">
+                    <p className="text-xs text-[#A3A3A3] leading-relaxed pr-6">
                       {notif.body}
                     </p>
                   </div>
 
                   {/* Action delete floating button */}
                   <button
-                    onClick={() => handleDelete(notif.id)}
-                    className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition rounded p-1.5 text-[#5A5C50] hover:text-[#E05656] hover:bg-[#E05656]/10"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleDelete(notif.id);
+                    }}
+                    className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition rounded p-1.5 text-[#525252] hover:text-[#E05656] hover:bg-[#E05656]/10"
                     aria-label="Delete notification"
                   >
                     <Trash2 size={15} />
@@ -131,8 +228,8 @@ export default function NotificationsPage() {
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center bg-[#141414] rounded-3xl border border-white/6 p-6 animate-blur-in">
             <Inbox size={44} className="text-white/10 mb-4" />
-            <h4 className="font-display text-base font-bold text-[#E8EAD8]">Inbox is completely clean!</h4>
-            <p className="text-xs text-[#A8AA98] mt-1 max-w-xs leading-relaxed">
+            <h4 className="font-display text-base font-bold text-[#FFFFFF]">Inbox is completely clean!</h4>
+            <p className="text-xs text-[#A3A3A3] mt-1 max-w-xs leading-relaxed">
               When neighbours post compatible food waste matches, list resources, or coordinate claims near you, alerts will populate here.
             </p>
           </div>

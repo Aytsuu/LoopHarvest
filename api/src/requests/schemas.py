@@ -1,8 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from src.models import ApiModel
 
@@ -18,6 +19,16 @@ class RequestBase(ApiModel):
     country: str = Field(min_length=1, max_length=120)
     max_distance_km: Decimal = Field(default=Decimal("10"), gt=0)
 
+    @model_validator(mode="after")
+    def validate_quantity_range(self) -> "RequestBase":
+        if (
+            self.quantity_kg_min is not None
+            and self.quantity_kg_max is not None
+            and self.quantity_kg_max < self.quantity_kg_min
+        ):
+            raise ValueError("quantity_kg_max must be greater than or equal to quantity_kg_min.")
+        return self
+
 class RequestCreate(RequestBase):
     pass
 
@@ -25,5 +36,7 @@ class RequestCreate(RequestBase):
 class Request(RequestBase):
     id: UUID = Field(default_factory=uuid4)
     requester_id: UUID
-    status: str = "open"
+    requester_name: str | None = None
+    requester_avatar_url: str | None = None
+    status: Literal["open", "fulfilled", "closed"] = "open"
     created_at: datetime = Field(default_factory=datetime.utcnow)

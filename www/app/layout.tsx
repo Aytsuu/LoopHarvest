@@ -6,6 +6,8 @@ import InitColorSchemeScript from '@mui/material/InitColorSchemeScript';
 import theme from '@/lib/theme';
 import "./globals.css";
 import ThemeSync from "@/components/common/ThemeSync";
+import { CategoriesProvider } from "@/components/common/CategoriesProvider";
+import ReactQueryProvider from "@/components/common/ReactQueryProvider";
 
 const syne = Syne({
   subsets: ["latin"],
@@ -29,6 +31,11 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: "LoopHarvest",
   description: "Hyperlocal circular economy platform for food waste recovery",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -42,16 +49,17 @@ export default function RootLayout({
       className={`${syne.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col bg-[#0A0A0A] text-[#E8EAD8]" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col bg-[#0A0A0A] text-[#FFFFFF]" suppressHydrationWarning>
         <ThemeSync />
         <InitColorSchemeScript attribute="class" defaultMode="dark" />
         <AppRouterCacheProvider>
           <ThemeProvider theme={theme}>
-            {children}
+            <ReactQueryProvider>
+              <CategoriesProvider>{children}</CategoriesProvider>
+            </ReactQueryProvider>
           </ThemeProvider>
         </AppRouterCacheProvider>
       </body>
     </html>
   );
 }
-

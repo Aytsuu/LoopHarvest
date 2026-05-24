@@ -3,10 +3,12 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, ChevronLeft, Send, Scale, Info } from 'lucide-react';
-import { mockStore } from '@/lib/mockStore';
-import { CATEGORIES, CategorySlug } from '@/lib/categories';
+import { useCategories } from '@/components/common/CategoriesProvider';
+import { apiClient } from '@/lib/api/client';
+import type { CategorySlug } from '@/lib/categories';
 
 export default function PostRequestPage() {
+  const { categories } = useCategories();
   const router = useRouter();
   const [step, setStep] = React.useState(1);
 
@@ -18,6 +20,19 @@ export default function PostRequestPage() {
   const [unit, setUnit] = React.useState('kg');
   const [frequency, setFrequency] = React.useState<'one-time' | 'weekly' | 'monthly'>('weekly');
   const [description, setDescription] = React.useState('');
+
+  React.useEffect(() => {
+    if (categories.length === 0) {
+      return;
+    }
+
+    const categoryExists = categories.some((item) => item.slug === category);
+    if (!categoryExists) {
+      setTimeout(() => {
+        setCategory(categories[0].slug);
+      }, 0);
+    }
+  }, [categories, category]);
 
   const handleNext = () => {
     if (step === 1 && !title.trim()) {
@@ -31,7 +46,7 @@ export default function PostRequestPage() {
     setStep(prev => prev - 1);
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!description.trim()) {
       alert('Please describe your needs so donors understand how materials will be utilized.');
       return;
@@ -41,34 +56,37 @@ export default function PostRequestPage() {
       return;
     }
 
-    mockStore.addRequest(
-      title,
-      category,
-      minQuantity,
-      maxQuantity,
-      unit,
-      frequency,
-      description
-    );
+    try {
+      await apiClient.createRequest({
+        title,
+        category_slug: category,
+        quantity_kg_min: minQuantity,
+        quantity_kg_max: maxQuantity,
+        frequency,
+        description,
+        city: 'San Francisco',
+        country: 'United States',
+        max_distance_km: 15,
+      });
 
-    // Dispatch event to show Toast success
-    const event = new CustomEvent('post-created', {
-      detail: `Urgent appeal published! "${title}" is now active.`
-    });
-    window.dispatchEvent(event);
-
-    router.push('/home');
+      window.dispatchEvent(new CustomEvent('post-created', {
+        detail: `Urgent appeal published! "${title}" is now active.`
+      }));
+      router.push('/home');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Unable to publish this request.');
+    }
   };
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#E8EAD8]">
+    <main className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#FFFFFF]">
       <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
         <button
           onClick={() => {
             if (step > 1) handlePrev();
             else router.push('/home');
           }}
-          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] hover:bg-white/8 transition"
+          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
         >
           Back
         </button>
@@ -84,10 +102,10 @@ export default function PostRequestPage() {
               <div 
                 className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                   step === num 
-                    ? 'bg-[#4ECDC4] text-[#003733] scale-110 shadow-lg' 
+                    ? 'bg-[#A8D97F] text-[#1A3A05] scale-110 shadow-lg' 
                     : step > num 
-                      ? 'bg-[#004D48] text-[#4ECDC4]' 
-                      : 'bg-[#1B1B1B] text-[#5A5C50] border border-white/6'
+                      ? 'bg-[#2A4A10] text-[#A8D97F]' 
+                      : 'bg-[#1B1B1B] text-[#525252] border border-white/6'
                 }`}
               >
                 {num}
@@ -95,7 +113,7 @@ export default function PostRequestPage() {
               {num < 2 && (
                 <div 
                   className={`h-0.5 flex-1 mx-2 transition-all ${
-                    step > num ? 'bg-[#004D48]' : 'bg-[#1B1B1B]'
+                    step > num ? 'bg-[#2A4A10]' : 'bg-[#1B1B1B]'
                   }`}
                 />
               )}
@@ -111,25 +129,25 @@ export default function PostRequestPage() {
         {step === 1 && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">What materials do you need?</h2>
-              <p className="text-xs text-[#A8AA98]">Create an appeal request so local food businesses can route scraps directly to you.</p>
+              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">What materials do you need?</h2>
+              <p className="text-xs text-[#A3A3A3]">Create an appeal request so local food businesses can route scraps directly to you.</p>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-[#A8AA98]">Appeal Title</label>
+                <label className="text-xs font-bold text-[#A3A3A3]">Appeal Title</label>
                 <input
                   type="text"
                   placeholder="e.g. Sourdough discards for poultry feed..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#4ECDC4] focus:outline-none transition-all"
+                  className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#A8D97F] focus:outline-none transition-all"
                 />
               </div>
 
               {/* Cadence frequency selection */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#A8AA98]">Supply Cadence</label>
+                <label className="text-xs font-bold text-[#A3A3A3]">Supply Cadence</label>
                 <div className="flex rounded-xl bg-[#141414] p-1 border border-white/6">
                   {(['one-time', 'weekly', 'monthly'] as const).map((freq) => (
                     <button
@@ -138,8 +156,8 @@ export default function PostRequestPage() {
                       onClick={() => setFrequency(freq)}
                       className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all capitalize ${
                         frequency === freq
-                          ? 'bg-[#004D48] text-[#4ECDC4]'
-                          : 'text-[#A8AA98] hover:text-[#E8EAD8]'
+                          ? 'bg-[#2A4A10] text-[#A8D97F]'
+                          : 'text-[#A3A3A3] hover:text-[#FFFFFF]'
                       }`}
                     >
                       {freq}
@@ -150,17 +168,17 @@ export default function PostRequestPage() {
 
               {/* Material categories grid */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-[#A8AA98]">Select Desired Category</label>
+                <label className="text-xs font-bold text-[#A3A3A3]">Select Desired Category</label>
                 <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1 pb-1 scrollbar-none">
-                  {CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <button
                       key={cat.slug}
                       type="button"
                       onClick={() => setCategory(cat.slug)}
                       className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
                         category === cat.slug
-                          ? 'bg-[#004D48] border-[#4ECDC4] text-[#4ECDC4]'
-                          : 'bg-[#141414] border-white/6 text-[#E8EAD8] hover:border-white/12'
+                          ? 'bg-[#2A4A10] border-[#A8D97F] text-[#A8D97F]'
+                          : 'bg-[#141414] border-white/6 text-[#FFFFFF] hover:border-white/12'
                       }`}
                     >
                       <span className="text-lg">{cat.emoji}</span>
@@ -177,8 +195,8 @@ export default function PostRequestPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <h2 className="font-display text-xl font-bold text-[#E8EAD8]">Specify capacity & describe need</h2>
-              <p className="text-xs text-[#A8AA98]">Configure weight ranges and explain what the material will be used for.</p>
+              <h2 className="font-display text-xl font-bold text-[#FFFFFF]">Specify capacity & describe need</h2>
+              <p className="text-xs text-[#A3A3A3]">Configure weight ranges and explain what the material will be used for.</p>
             </div>
 
             <div className="space-y-4">
@@ -186,37 +204,37 @@ export default function PostRequestPage() {
               {/* Range block */}
               <div className="bg-[#141414] p-5 rounded-2xl border border-white/6 space-y-4">
                 <div className="flex justify-center items-center gap-2">
-                  <Scale size={20} className="text-[#4ECDC4]" />
-                  <span className="font-display text-base font-bold text-[#4ECDC4]">Target Range Needed</span>
+                  <Scale size={20} className="text-[#A8D97F]" />
+                  <span className="font-display text-base font-bold text-[#A8D97F]">Target Range Needed</span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#A8AA98] uppercase block text-center">Min</label>
+                    <label className="text-[10px] font-bold text-[#A3A3A3] uppercase block text-center">Min</label>
                     <input
                       type="number"
                       value={minQuantity}
                       onChange={(e) => setMinQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#E8EAD8] focus:border-[#4ECDC4] focus:outline-none"
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#A8AA98] uppercase block text-center">Max</label>
+                    <label className="text-[10px] font-bold text-[#A3A3A3] uppercase block text-center">Max</label>
                     <input
                       type="number"
                       value={maxQuantity}
                       onChange={(e) => setMaxQuantity(Math.max(minQuantity, parseInt(e.target.value) || minQuantity))}
-                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#E8EAD8] focus:border-[#4ECDC4] focus:outline-none"
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-mono font-bold text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#A8AA98] uppercase block text-center">Unit</label>
+                    <label className="text-[10px] font-bold text-[#A3A3A3] uppercase block text-center">Unit</label>
                     <select
                       value={unit}
                       onChange={(e) => setUnit(e.target.value)}
-                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-bold text-xs text-[#E8EAD8] focus:border-[#4ECDC4] focus:outline-none"
+                      className="w-full h-11 px-2 rounded-xl border border-white/10 bg-[#0A0A0A] text-center font-bold text-xs text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none"
                     >
                       <option value="kg">kg</option>
                       <option value="pieces">pcs</option>
@@ -229,18 +247,18 @@ export default function PostRequestPage() {
 
               {/* Description Details */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-[#A8AA98]">How will you use this waste?</label>
+                <label className="text-xs font-bold text-[#A3A3A3]">How will you use this waste?</label>
                 <textarea
                   placeholder="e.g. Supplement feed for organic poultry. Looking for consistent spent grain shipments. Can handle pickup directly."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full p-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#4ECDC4] focus:outline-none leading-relaxed resize-none"
+                  className="w-full p-4 rounded-xl border border-white/10 bg-[#141414] text-sm focus:border-[#A8D97F] focus:outline-none leading-relaxed resize-none"
                 />
               </div>
 
-              <div className="flex gap-2 text-[10px] text-[#A8AA98] leading-relaxed px-1 bg-[#141414]/40 p-3.5 rounded-xl border border-white/6">
-                <Info size={14} className="text-[#4ECDC4] shrink-0 mt-0.5" />
+              <div className="flex gap-2 text-[10px] text-[#A3A3A3] leading-relaxed px-1 bg-[#141414]/40 p-3.5 rounded-xl border border-white/6">
+                <Info size={14} className="text-[#A8D97F] shrink-0 mt-0.5" />
                 <span>You will earn +10 XP immediately upon posting, and an additional +30 XP once a compatible donor coordinates with you.</span>
               </div>
             </div>
@@ -252,7 +270,7 @@ export default function PostRequestPage() {
           {step > 1 && (
             <button
               onClick={handlePrev}
-              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#E8EAD8] hover:bg-[#1B1B1B] transition flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#1B1B1B] transition flex-1"
             >
               <ChevronLeft size={16} />
               <span>Back</span>
@@ -262,7 +280,7 @@ export default function PostRequestPage() {
           {step < 2 ? (
             <button
               onClick={handleNext}
-              className="flex items-center justify-center gap-1 rounded-xl bg-[#4ECDC4] px-4 py-3.5 text-xs font-black text-[#003733] transition hover:brightness-105 active:scale-98 flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1"
             >
               <span>Continue</span>
               <ChevronRight size={16} />
@@ -270,7 +288,7 @@ export default function PostRequestPage() {
           ) : (
             <button
               onClick={handlePublish}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#4ECDC4] px-4 py-3.5 text-xs font-black text-[#003733] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg"
             >
               <span>Publish Appeal</span>
               <Send size={14} />

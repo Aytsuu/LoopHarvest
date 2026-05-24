@@ -1,15 +1,31 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from src.listings.service import listing_service
+from src.listings.service import InMemoryListingRepository, listing_service
 from src.main import app
-from src.requests.service import request_service
+from src.requests.service import InMemoryRequestRepository, request_service
+from src.categories.service import InMemoryCategoryRepository, category_service
+from src.surveys.service import InMemoryUserSurveyRepository, survey_service
 
 
 @pytest.fixture(autouse=True)
 def reset_state() -> None:
-    listing_service._listings.clear()
-    request_service._requests.clear()
+    original_listing_repository = listing_service._repository
+    original_request_repository = request_service._repository
+    original_category_repository = category_service._repository
+    original_survey_repository = survey_service._repository
+
+    listing_service._repository = InMemoryListingRepository()
+    request_service._repository = InMemoryRequestRepository()
+    category_service._repository = InMemoryCategoryRepository()
+    survey_service._repository = InMemoryUserSurveyRepository()
+
+    yield
+
+    listing_service._repository = original_listing_repository
+    request_service._repository = original_request_repository
+    category_service._repository = original_category_repository
+    survey_service._repository = original_survey_repository
 
 
 @pytest.fixture

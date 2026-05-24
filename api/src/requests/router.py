@@ -10,12 +10,12 @@ router = APIRouter(prefix="/requests", tags=["requests"])
 
 @router.get("", response_model=ApiEnvelope[list[Request]], summary="List open requests")
 async def list_requests() -> ApiEnvelope[list[Request]]:
-    return ApiEnvelope(data=request_service.list_requests())
+    return ApiEnvelope(data=await request_service.list_requests())
 
 
 @router.get("/{request_id}", response_model=ApiEnvelope[Request], summary="Get request")
 async def get_request(request_id: str) -> ApiEnvelope[Request]:
-    return ApiEnvelope(data=request_service.get_request(request_id))
+    return ApiEnvelope(data=await request_service.get_request(request_id))
 
 
 @router.post(
@@ -26,6 +26,18 @@ async def get_request(request_id: str) -> ApiEnvelope[Request]:
 )
 async def create_request(payload: RequestCreate, current_user: CurrentUser) -> ApiEnvelope[Request]:
     return ApiEnvelope(
-        data=request_service.create_request(payload, current_user.id),
+        data=await request_service.create_request(payload, current_user.id),
         message="Request created.",
+    )
+
+
+@router.post(
+    "/{request_id}/fulfill",
+    response_model=ApiEnvelope[Request],
+    summary="Fulfill request",
+)
+async def fulfill_request(request_id: str, current_user: CurrentUser) -> ApiEnvelope[Request]:
+    return ApiEnvelope(
+        data=await request_service.fulfill_request(request_id),
+        message="Request fulfilled.",
     )

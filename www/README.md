@@ -4,6 +4,32 @@ This is the LoopHarvest frontend built with [Next.js](https://nextjs.org).
 
 Create `www/.env.local` for local frontend runtime. Required keys are documented in `.env.example`.
 
+The frontend now expects:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` for map views
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` for browser push subscription
+
+Important:
+
+- `NEXT_PUBLIC_SUPABASE_URL` must be the project base URL, for example `https://your-ref.supabase.co`
+- Do not use `.../rest/v1` here
+- OAuth redirect URLs are derived from the live browser origin, not a static site URL env var
+- For LAN or mobile testing, Supabase Auth must allow the callback host in `Authentication -> URL Configuration`
+
+For LAN/mobile auth testing, add redirect allowlist entries in Supabase such as:
+
+- `http://localhost:3000/**`
+- `http://127.0.0.1:3000/**`
+- `http://192.168.*:3000/**`
+- `http://10.*:3000/**`
+- `http://172.*:3000/**`
+- `http://*.local:3000/**`
+
+If Supabase rejects the dynamic host, it falls back to the hosted project's `Site URL`, which often appears as a redirect to `http://localhost:3000`.
+
 First, run the development server:
 
 ```bash

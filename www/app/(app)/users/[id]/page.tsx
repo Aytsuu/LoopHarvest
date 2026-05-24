@@ -3,11 +3,13 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ShieldCheck, Calendar, Scale, Heart, Award, MessageSquare } from 'lucide-react';
-import { mockStore } from '@/lib/mockStore';
+import { apiClient } from '@/lib/api/client';
+import { toListingCardModel, toRequestCardModel, toUserAvatarUrl } from '@/lib/api/mappers';
+import type { Listing, RequestItem } from '@/lib/api/types';
 import ListingCard from '@/components/cards/ListingCard';
 import RequestCard from '@/components/cards/RequestCard';
 
-interface MockUserProfile {
+interface DynamicUserProfile {
   name: string;
   avatar: string;
   role: string;
@@ -19,118 +21,155 @@ interface MockUserProfile {
   verified: boolean;
 }
 
-const MOCK_PROFILES: Record<string, MockUserProfile> = {
-  'Hannelore': {
-    name: 'Hannelore Schmidt',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hannelore',
-    role: 'Compost Artisan',
-    city: 'San Francisco',
-    points: 480,
-    kgDiverted: 48.5,
-    co2Saved: 24.2,
-    joined: 'Jan 2025',
-    verified: true
-  },
-  'Andytown': {
-    name: 'Andytown Coffee',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Andytown',
-    role: 'Zero-Waste Cafe',
-    city: 'San Francisco',
-    points: 1250,
-    kgDiverted: 145.0,
-    co2Saved: 72.5,
-    joined: 'Sep 2024',
-    verified: true
-  },
-  'BiRite': {
-    name: 'Bi-Rite Market',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=BiRite',
-    role: 'Regenerative Grocer',
-    city: 'San Francisco',
-    points: 890,
-    kgDiverted: 92.4,
-    co2Saved: 46.2,
-    joined: 'Mar 2025',
-    verified: true
-  },
-  'Tartine': {
-    name: 'Tartine Bakery',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tartine',
-    role: 'Circular Bakery',
-    city: 'San Francisco',
-    points: 1540,
-    kgDiverted: 182.5,
-    co2Saved: 91.2,
-    joined: 'Jul 2024',
-    verified: true
-  },
-  'FeatherFarm': {
-    name: 'Feather & Comb Farm',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=FeatherFarm',
-    role: 'Laying Poultry Farm',
-    city: 'San Francisco',
-    points: 340,
-    kgDiverted: 35.0,
-    co2Saved: 17.5,
-    joined: 'Feb 2026',
-    verified: true
-  },
-  'EcoSanct': {
-    name: 'EcoSanctuary Cleaning',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=EcoSanct',
-    role: 'Bio-Cleaners Designer',
-    city: 'San Francisco',
-    points: 210,
-    kgDiverted: 12.0,
-    co2Saved: 6.0,
-    joined: 'Apr 2026',
-    verified: false
-  }
-};
-
 export default function UserProfileDetailPage() {
   const params = useParams();
   const router = useRouter();
   const rawId = params.id as string;
-  
-  // Extract key seed name from dicebear URL if applicable or id
-  const profileKey = React.useMemo(() => {
-    if (!rawId) return '';
-    // Look up directly
-    if (MOCK_PROFILES[rawId]) return rawId;
-    // Look up based on substrings
-    const matched = Object.keys(MOCK_PROFILES).find(key => 
-      rawId.toLowerCase().includes(key.toLowerCase()) || 
-      key.toLowerCase().includes(rawId.toLowerCase())
-    );
-    return matched || 'Hannelore';
+
+  const [loading, setLoading] = React.useState(true);
+  const [profile, setProfile] = React.useState<DynamicUserProfile | null>(null);
+  const [listings, setListings] = React.useState<Listing[]>([]);
+  const [requests, setRequests] = React.useState<RequestItem[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const loadProfileData = async () => {
+      if (!rawId) return;
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch all active listings, requests, and current logged-in user
+        const [listingRows, requestRows, currentUser] = await Promise.all([
+          apiClient.getListings(),
+          apiClient.getRequests(),
+          apiClient.getCurrentUser().catch(() => null),
+        ]);
+
+        const mappedListings = listingRows.map(toListingCardModel);
+        const mappedRequests = requestRows.map(toRequestCardModel);
+
+        // 1. Check if the user is the current logged in user
+        const isCurrentUser = currentUser && currentUser.id === rawId;
+
+        // 2. Filter listings/requests for this target user ID
+        const userListings = mappedListings.filter((l) => {
+          const row = listingRows.find((r) => r.id === l.id);
+          return row?.donor_id === rawId || (isCurrentUser && l.donorName.includes('You'));
+        });
+
+        const userRequests = mappedRequests.filter((r) => {
+          const row = requestRows.find((item) => item.id === r.id);
+          return row?.requester_id === rawId || (isCurrentUser && r.requesterName.includes('You'));
+        });
+
+        setListings(userListings);
+        setRequests(userRequests);
+
+        // 3. Extract profile details
+        let name = 'LoopHarvest Member';
+        let avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(rawId)}`;
+        let city = 'San Francisco';
+        let role = 'Circular Contributor';
+        let verified = false;
+        let joined = 'Jan 2025';
+
+        if (isCurrentUser) {
+          name = currentUser.display_name ?? 'You (Current User)';
+          avatar = toUserAvatarUrl(currentUser);
+          city = currentUser.city ?? 'San Francisco';
+          role = 'Core Loop Node';
+          verified = true;
+          joined = 'May 2026';
+        } else if (userListings.length > 0) {
+          const firstListing = userListings[0];
+          name = firstListing.donorName;
+          avatar = firstListing.donorAvatar;
+          city = firstListing.city;
+          role = 'Compost Artisan';
+          verified = true;
+        } else if (userRequests.length > 0) {
+          const firstRequest = userRequests[0];
+          name = firstRequest.requesterName;
+          avatar = firstRequest.requesterAvatar;
+          city = firstRequest.city;
+          role = 'Zero-Waste Partner';
+          verified = true;
+        } else {
+          // Backward compatibility for mock names or seed URLs
+          const fallbackNames: Record<string, string> = {
+            Hannelore: 'Hannelore Schmidt',
+            Andytown: 'Andytown Coffee',
+            BiRite: 'Bi-Rite Market',
+            Tartine: 'Tartine Bakery',
+            FeatherFarm: 'Feather & Comb Farm',
+            EcoSanct: 'EcoSanctuary Cleaning',
+          };
+
+          const foundKey = Object.keys(fallbackNames).find(
+            (key) => rawId.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(rawId.toLowerCase())
+          );
+
+          if (foundKey) {
+            name = fallbackNames[foundKey];
+            avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${foundKey}`;
+            role = foundKey.includes('Farm') || foundKey.includes('Market') ? 'Zero-Waste Partner' : 'Compost Artisan';
+            verified = true;
+          } else {
+            // Seed name from the rawId itself
+            name = rawId.charAt(0).toUpperCase() + rawId.slice(1);
+          }
+        }
+
+        // Calculate stats dynamically
+        const listingsPosted = userListings.length;
+        const requestsFulfilled = userRequests.filter((r) => r.status !== 'open').length;
+        const totalKg = userListings.reduce((sum, l) => sum + l.quantity, 0) + 
+                         userRequests.reduce((sum, r) => sum + r.minQuantity, 0);
+        
+        const kgDiverted = totalKg > 0 ? Number(totalKg.toFixed(1)) : 12.5; // default fallback if brand new
+        const co2Saved = Number((kgDiverted * 0.5).toFixed(1));
+        const points = Math.round(kgDiverted * 10 + requestsFulfilled * 30 + listingsPosted * 15);
+
+        setProfile({
+          name,
+          avatar,
+          role,
+          city,
+          points,
+          kgDiverted,
+          co2Saved,
+          joined,
+          verified,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to retrieve profile data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadProfileData();
   }, [rawId]);
 
-  const profile = MOCK_PROFILES[profileKey];
-
-  const listings = React.useMemo(() => {
-    if (!profile) return [];
-    return mockStore.getListings().filter(l => 
-      l.donorName.toLowerCase().includes(profile.name.toLowerCase()) ||
-      profile.name.toLowerCase().includes(l.donorName.toLowerCase())
-    );
-  }, [profile]);
-
-  const requests = React.useMemo(() => {
-    if (!profile) return [];
-    return mockStore.getRequests().filter(r => 
-      r.requesterName.toLowerCase().includes(profile.name.toLowerCase()) ||
-      profile.name.toLowerCase().includes(r.requesterName.toLowerCase())
-    );
-  }, [profile]);
-
-  if (!profile) {
+  if (loading) {
     return (
-      <div className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#E8EAD8]">
+      <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] text-sm text-[#A3A3A3]">
+        <div className="space-y-4 text-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#2A4A10] border-t-[#A8D97F] mx-auto" />
+          <p>Syncing circular node profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#FFFFFF]">
         <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
           <button
             onClick={() => router.back()}
-            className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] hover:bg-white/8 transition"
+            className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
           >
             Back
           </button>
@@ -140,6 +179,7 @@ export default function UserProfileDetailPage() {
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <span className="text-4xl mb-4">👤</span>
           <h3 className="font-display text-lg font-bold">User profile not found</h3>
+          <p className="text-xs text-[#A3A3A3] mt-2 max-w-xs">{error ?? 'This circular node has not been registered yet.'}</p>
           <button 
             onClick={() => router.push('/home')}
             className="mt-6 rounded-lg bg-[#2A4A10] px-4 py-2 text-xs font-bold text-[#A8D97F]"
@@ -152,16 +192,16 @@ export default function UserProfileDetailPage() {
   }
 
   return (
-    <main className="flex-1 bg-[#0A0A0A] text-[#E8EAD8] min-h-screen">
+    <main className="flex-1 bg-[#0A0A0A] text-[#FFFFFF] min-h-screen">
       <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
         <button
           onClick={() => router.back()}
-          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#E8EAD8] hover:bg-white/8 transition"
+          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
         >
           Back
         </button>
         <span className="font-display text-lg font-bold tracking-tight">Circular Profile</span>
-          <span className="w-13" />
+        <span className="w-13" />
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-8 pb-24 md:pb-8">
@@ -185,7 +225,7 @@ export default function UserProfileDetailPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex flex-col md:flex-row md:items-center gap-2">
-                  <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#E8EAD8]">
+                  <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#FFFFFF]">
                     {profile.name}
                   </h2>
                   {profile.verified && (
@@ -195,11 +235,11 @@ export default function UserProfileDetailPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-[#A8AA98] mt-1 font-semibold">{profile.role} · {profile.city}</p>
+                <p className="text-xs text-[#A3A3A3] mt-1 font-semibold">{profile.role} · {profile.city}</p>
               </div>
 
               <button
-                onClick={() => alert(`Messaging is disabled in mock state! Contacting: ${profile.name}`)}
+                onClick={() => alert(`Direct messaging to ${profile.name} will be connected in the next platform release.`)}
                 className="rounded-xl bg-[#A8D97F] px-5 py-2.5 text-xs font-black text-[#1A3A05] hover:brightness-105 transition flex items-center justify-center gap-2 self-center md:self-auto"
               >
                 <MessageSquare size={14} />
@@ -207,7 +247,7 @@ export default function UserProfileDetailPage() {
               </button>
             </div>
 
-            <div className="text-xs text-[#A8AA98] font-bold">
+            <div className="text-xs text-[#A3A3A3] font-bold">
               Joined {profile.joined}
             </div>
           </div>
@@ -218,26 +258,26 @@ export default function UserProfileDetailPage() {
           
           <div className="bg-[#141414] p-4 rounded-2xl border border-white/6 text-center">
             <Scale size={18} className="text-[#A8D97F] mx-auto mb-2" />
-            <div className="font-mono text-lg font-black text-[#E8EAD8]">{profile.kgDiverted} kg</div>
-            <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Scraps Diverted</div>
+            <div className="font-mono text-lg font-black text-[#FFFFFF]">{profile.kgDiverted} kg</div>
+            <div className="text-[10px] font-bold text-[#A3A3A3] uppercase mt-0.5">Scraps Diverted</div>
           </div>
 
           <div className="bg-[#141414] p-4 rounded-2xl border border-white/6 text-center">
             <Heart size={18} className="text-[#E8A838] mx-auto mb-2" />
-            <div className="font-mono text-lg font-black text-[#E8EAD8]">{profile.co2Saved} kg</div>
-            <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">CO2 Mitigated</div>
+            <div className="font-mono text-lg font-black text-[#FFFFFF]">{profile.co2Saved} kg</div>
+            <div className="text-[10px] font-bold text-[#A3A3A3] uppercase mt-0.5">CO2 Mitigated</div>
           </div>
 
           <div className="bg-[#141414] p-4 rounded-2xl border border-white/6 text-center">
             <Award size={18} className="text-[#4ECDC4] mx-auto mb-2" />
-            <div className="font-mono text-lg font-black text-[#E8EAD8]">{profile.points} XP</div>
-            <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Community Score</div>
+            <div className="font-mono text-lg font-black text-[#FFFFFF]">{profile.points} XP</div>
+            <div className="text-[10px] font-bold text-[#A3A3A3] uppercase mt-0.5">Community Score</div>
           </div>
 
           <div className="bg-[#141414] p-4 rounded-2xl border border-white/6 text-center">
             <Calendar size={18} className="text-[#C4F09A] mx-auto mb-2" />
             <div className="font-mono text-lg font-black text-[#C4F09A]">{listings.length + requests.length}</div>
-            <div className="text-[10px] font-bold text-[#A8AA98] uppercase mt-0.5">Active Posts</div>
+            <div className="text-[10px] font-bold text-[#A3A3A3] uppercase mt-0.5">Active Posts</div>
           </div>
 
         </div>
@@ -246,9 +286,9 @@ export default function UserProfileDetailPage() {
         <div className="space-y-6">
           {listings.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-[#A8AA98]">Available Donations ({listings.length})</h3>
+              <h3 className="text-xs font-black uppercase tracking-wider text-[#A3A3A3]">Available Donations ({listings.length})</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {listings.map(l => (
+                {listings.map((l) => (
                   <ListingCard key={l.id} listing={l} />
                 ))}
               </div>
@@ -257,9 +297,9 @@ export default function UserProfileDetailPage() {
 
           {requests.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-[#A8AA98]">Active Material Appeals ({requests.length})</h3>
+              <h3 className="text-xs font-black uppercase tracking-wider text-[#A3A3A3]">Active Material Appeals ({requests.length})</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {requests.map(r => (
+                {requests.map((r) => (
                   <RequestCard key={r.id} request={r} />
                 ))}
               </div>
@@ -267,7 +307,7 @@ export default function UserProfileDetailPage() {
           )}
 
           {listings.length === 0 && requests.length === 0 && (
-            <div className="py-12 text-center text-xs text-[#5A5C50] bg-[#141414] border border-white/6 rounded-2xl">
+            <div className="py-12 text-center text-xs text-[#525252] bg-[#141414] border border-white/6 rounded-2xl">
               🍂 This node doesn&apos;t have any active public listings or appeals right now.
             </div>
           )}

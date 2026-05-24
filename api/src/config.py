@@ -1,6 +1,9 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.supabase_url import normalize_supabase_project_url
 
 
 class Settings(BaseSettings):
@@ -14,9 +17,29 @@ class Settings(BaseSettings):
     app_name: str = "LoopHarvest API"
     api_prefix: str = "/api/v1"
     show_docs: bool = True
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    cors_origin_regex: str = (
+        r"^https?://("
+        r"localhost"
+        r"|127\.0\.0\.1"
+        r"|192\.168\.\d{1,3}\.\d{1,3}"
+        r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+        r"|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
+        r")(:\d+)?$"
+    )
     supabase_url: str | None = None
     supabase_publishable_key: str | None = None
     supabase_service_role_key: str | None = None
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
 
     @property
     def docs_url(self) -> str | None:
@@ -28,9 +51,10 @@ class Settings(BaseSettings):
 
     @property
     def supabase_jwt_issuer(self) -> str | None:
-        if not self.supabase_url:
+        project_url = normalize_supabase_project_url(self.supabase_url)
+        if not project_url:
             return None
-        return f"{self.supabase_url.rstrip('/')}/auth/v1"
+        return f"{project_url.rstrip('/')}/auth/v1"
 
     @property
     def supabase_jwks_url(self) -> str | None:
@@ -38,6 +62,10 @@ class Settings(BaseSettings):
         if not issuer:
             return None
         return f"{issuer}/.well-known/jwks.json"
+
+    @property
+    def supabase_project_url(self) -> str | None:
+        return normalize_supabase_project_url(self.supabase_url)
 
 
 @lru_cache

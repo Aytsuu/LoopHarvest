@@ -1,137 +1,122 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, User, PlusCircle } from 'lucide-react';
-import Globe from "@/components/Globe";
+import { Mail, Lock, PlusCircle, ArrowLeft } from 'lucide-react';
+
+import StarsBackground from "@/components/StarsBackground";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [role, setRole] = React.useState<'donor' | 'recipient'>('donor');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
   const [error, setError] = React.useState('');
+  const [notice, setNotice] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isLargeScreen, setIsLargeScreen] = React.useState(false);
 
-  React.useEffect(() => {
-    const handleResize = () => {
-      setIsLargeScreen(window.innerWidth >= 1024);
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !email || !password) {
+    if (!email || !password) {
       setError('Please fill in all fields');
       return;
     }
+
+    if (password && !confirmPassword) {
+      setError('Please confirm your password');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
     setError('');
+    setNotice('');
     setIsLoading(true);
 
-    // Simulate signup loading delay
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/auth/email-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error?.message || 'Unable to create your account right now.');
+      }
+
+      setNotice('Verification email sent. Redirecting you to your inbox instructions...');
+      router.replace(`/signup/check-email?email=${encodeURIComponent(email)}`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create your account right now.');
+    } finally {
       setIsLoading(false);
-      document.cookie = "fl_logged_in=true; path=/; max-age=86400";
-      router.push('/home');
-    }, 1200);
+    }
   };
 
   return (
-    <main className="relative flex h-screen w-screen items-center justify-center bg-[#0A0A0A] px-4 overflow-hidden">
-      
-      {/* Background Interactive Globe - low opacity */}
-      <div className="absolute inset-0 z-0 opacity-20 pointer-events-none select-none scale-105">
-        {isLargeScreen && <Globe />}
+    <main className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-[#0A0A0A] px-4">
+      {/* Back to landing button */}
+      <button
+        onClick={() => router.push('/')}
+        className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-4 py-2 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-[#FFFFFF] active:scale-95 group"
+      >
+        <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
+        <span>Back to Landing</span>
+      </button>
+
+      <div className="absolute inset-0 z-0 select-none opacity-50 pointer-events-none">
+        <StarsBackground />
       </div>
 
-      {/* Dark Ambient Vignette overlay */}
       <div className="absolute inset-0 z-1 bg-gradient-to-tr from-[#0A0A0A] via-transparent to-[#0A0A0A]/90 pointer-events-none" />
 
-      {/* Signup Card */}
       <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-white/8 bg-[#141414]/80 p-8 shadow-[0_16px_48px_rgba(0,0,0,0.8)] backdrop-blur-md">
-        
-        {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-6">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="LoopHarvest" className="h-12 w-12 object-contain rounded-2xl shadow-lg mb-3" />
-          <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#E8EAD8]">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <Image
+            src="/logo.png"
+            alt="LoopHarvest"
+            width={48}
+            height={48}
+            className="mb-3 h-12 w-12 object-contain"
+          />
+          <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#FFFFFF]">
             Create Loop Account
           </h2>
-          <p className="text-xs text-[#A8AA98] mt-1.5 max-w-xs">
+          <p className="mt-1.5 max-w-xs text-xs text-[#A3A3A3]">
             Start saving organic scrap materials and claim your carbon diversion awards.
           </p>
         </div>
 
-        {/* Error Callout */}
         {error && (
-          <div className="mb-4 rounded-xl bg-[#7A1010]/30 border border-[#E05656]/30 p-3.5 text-xs font-semibold text-[#FFB4AB] flex items-center gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
+          <div className="mb-4 rounded-xl border border-[#E05656]/30 bg-[#7A1010]/30 p-3.5 text-xs font-semibold text-[#FFB4AB]">
+            {error}
           </div>
         )}
 
-        {/* Role Segment Button */}
-        <div className="mb-5 space-y-1.5">
-          <span className="text-xs font-bold text-[#A8AA98]">Select Your Primary Role</span>
-          <div className="flex rounded-xl bg-[#0A0A0A]/60 p-1 border border-white/6">
-            <button
-              type="button"
-              onClick={() => setRole('donor')}
-              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
-                role === 'donor'
-                  ? 'bg-[#2A4A10] text-[#A8D97F]'
-                  : 'text-[#A8AA98] hover:text-[#E8EAD8]'
-              }`}
-            >
-              🍉 Waste Donor
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole('recipient')}
-              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
-                role === 'recipient'
-                  ? 'bg-[#004D48] text-[#4ECDC4]'
-                  : 'text-[#A8AA98] hover:text-[#E8EAD8]'
-              }`}
-            >
-              🐓 Waste Recipient
-            </button>
+        {notice && (
+          <div className="mb-4 rounded-xl border border-[#A8D97F]/20 bg-[#11331D]/40 p-3.5 text-xs font-semibold text-[#C4F09A]">
+            {notice}
           </div>
-        </div>
+        )}
 
-        {/* Signup Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[#A8AA98]" htmlFor="name">
-              Organization or Name
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-[#5A5C50]">
-                <User size={16} />
-              </span>
-              <input
-                id="name"
-                type="text"
-                placeholder="Tartine Bakery"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isLoading}
-                className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/10 bg-[#0A0A0A]/60 text-sm text-[#E8EAD8] placeholder-[#5A5C50] focus:border-[#A8D97F] focus:outline-none transition-all disabled:opacity-50"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[#A8AA98]" htmlFor="email">
+            <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="email">
               Email Address
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-[#5A5C50]">
+              <span className="absolute inset-y-0 left-3 flex items-center text-[#525252]">
                 <Mail size={16} />
               </span>
               <input
@@ -139,29 +124,49 @@ export default function SignupPage() {
                 type="email"
                 placeholder="compost@farm.org"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 disabled={isLoading}
-                className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/10 bg-[#0A0A0A]/60 text-sm text-[#E8EAD8] placeholder-[#5A5C50] focus:border-[#A8D97F] focus:outline-none transition-all disabled:opacity-50"
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[#A8AA98]" htmlFor="password">
+            <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="password">
               Password
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-[#5A5C50]">
+              <span className="absolute inset-y-0 left-3 flex items-center text-[#525252]">
                 <Lock size={16} />
               </span>
               <input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="At least 6 characters"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 disabled={isLoading}
-                className="w-full h-11 pl-10 pr-4 rounded-xl border border-white/10 bg-[#0A0A0A]/60 text-sm text-[#E8EAD8] placeholder-[#5A5C50] focus:border-[#A8D97F] focus:outline-none transition-all disabled:opacity-50"
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="confirmPassword">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-3 flex items-center text-[#525252]">
+                <Lock size={16} />
+              </span>
+              <input
+                id="confirmPassword"
+                type="password"
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                disabled={isLoading}
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
               />
             </div>
           </div>
@@ -169,9 +174,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full h-12 rounded-xl text-sm font-black transition-transform active:scale-[0.98] flex items-center justify-center gap-2 mt-6 disabled:opacity-50 ${
-              role === 'donor' ? 'bg-[#A8D97F] text-[#1A3A05]' : 'bg-[#4ECDC4] text-[#003733]'
-            }`}
+            className={`mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black transition-transform active:scale-[0.98] disabled:opacity-50 bg-[#A8D97F] text-[#1A3A05]`}
           >
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -184,8 +187,7 @@ export default function SignupPage() {
           </button>
         </form>
 
-        {/* Log in prompt */}
-        <div className="text-center mt-6 text-xs text-[#A8AA98]">
+        <div className="mt-6 text-center text-xs text-[#A3A3A3]">
           Already have an account?{' '}
           <button
             onClick={() => router.push('/login')}
@@ -194,7 +196,6 @@ export default function SignupPage() {
             Sign in
           </button>
         </div>
-
       </div>
     </main>
   );

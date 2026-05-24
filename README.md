@@ -68,7 +68,7 @@ LoopHarvest uses the Supabase CLI to manage database structures and authenticati
 
 *Local URLs:*
 - **Studio (Database GUI):** `http://127.0.0.1:54323`
-- **PostgreSQL Connection URI:** `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
+- **PostgreSQL Connection URI:** `postgresql://postgres:postgres@127.0.0.1:54332/postgres`
 
 ---
 

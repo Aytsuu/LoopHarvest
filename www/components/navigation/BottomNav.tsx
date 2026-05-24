@@ -21,7 +21,7 @@ export default function BottomNav({ onPostClick }: BottomNavProps) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-20 w-full items-center justify-around border-t border-white/6 bg-[#141414] px-2 pb-safe text-[#A8AA98] md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-20 w-full items-center justify-around border-t border-white/6 bg-[#141414] px-2 pb-safe text-[#A3A3A3] md:hidden">
       {navItems.map((item, index) => {
         const isActive = item.route ? pathname === item.route : false;
         
@@ -45,7 +45,7 @@ export default function BottomNav({ onPostClick }: BottomNavProps) {
             key={index}
             onClick={() => item.route && router.push(item.route)}
             className={`group flex flex-col items-center justify-center gap-1 w-16 transition-colors ${
-              isActive ? 'text-[#A8D97F]' : 'hover:text-[#E8EAD8]'
+              isActive ? 'text-[#A8D97F]' : 'hover:text-[#FFFFFF]'
             }`}
           >
             <div className="relative flex h-8 w-14 items-center justify-center rounded-full transition-colors">
