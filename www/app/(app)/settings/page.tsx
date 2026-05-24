@@ -21,6 +21,7 @@ import { ensurePushSubscription, removePushSubscription } from '@/lib/notificati
 import { toListingCardModel, toRequestCardModel, toUserStats } from '@/lib/api/mappers';
 import type { ApiListing, ApiRequest, NotificationSettingsFormData, UserStats } from '@/lib/api/types';
 import { createClient } from '@/lib/supabase/client';
+import { getProfileAvatarsBucket } from '@/lib/supabase/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Import newly extracted sub-components
@@ -32,6 +33,7 @@ import SDG from '@/components/settings/sdg';
 import Billing from '@/components/settings/billing';
 import AdminBroadcasts from '@/components/settings/admin-broadcasts';
 import AdminReleases from '@/components/settings/admin-releases';
+import { isGeneratedAvatarUrl } from '@/lib/users/avatar';
 
 function formatJoinedLabel(value: string | null | undefined) {
   if (!value) {
@@ -51,30 +53,7 @@ function isLegacyCartoonAvatarUrl(value: string | null | undefined) {
     return false;
   }
 
-  return value.includes('api.dicebear.com') || value.includes('/avataaars/');
-}
-
-function extractProviderAvatarUrl(sessionUser: Awaited<ReturnType<ReturnType<typeof createClient>['auth']['getUser']>>['data']['user']) {
-  const identities = (sessionUser as { identities?: Array<{ identity_data?: Record<string, unknown> | null }> } | null)?.identities ?? [];
-  for (const identity of identities) {
-    const identityData = identity.identity_data;
-    if (!identityData) {
-      continue;
-    }
-
-    const avatarUrl = identityData.avatar_url;
-    if (typeof avatarUrl === 'string' && avatarUrl.trim()) {
-      return avatarUrl;
-    }
-
-    const picture = identityData.picture;
-    if (typeof picture === 'string' && picture.trim()) {
-      return picture;
-    }
-  }
-
-  const metadataAvatarUrl = sessionUser?.user_metadata?.avatar_url;
-  return typeof metadataAvatarUrl === 'string' && metadataAvatarUrl.trim() ? metadataAvatarUrl : null;
+  return isGeneratedAvatarUrl(value);
 }
 
 export default function ProfilePage() {
@@ -100,6 +79,8 @@ export default function ProfilePage() {
   const [country, setCountry] = React.useState('');
   const [bio, setBio] = React.useState('');
   const [persistedAvatarUrl, setPersistedAvatarUrl] = React.useState<string | null>(null);
+  const [isAvatarUploading, setIsAvatarUploading] = React.useState(false);
+  const [avatarUploadError, setAvatarUploadError] = React.useState<string | null>(null);
 
   // Queries
   const { data: user } = useQuery({
@@ -108,7 +89,31 @@ export default function ProfilePage() {
       const dbUser = await apiClient.getCurrentUser();
       const supabase = createClient();
       const { data: { user: sessionUser } } = await supabase.auth.getUser();
-      const providerAvatarUrl = extractProviderAvatarUrl(sessionUser);
+      const identities = (sessionUser as { identities?: Array<{ identity_data?: Record<string, unknown> | null }> } | null)?.identities ?? [];
+      let providerAvatarUrl: string | null = null;
+      for (const identity of identities) {
+        const identityData = identity.identity_data;
+        if (!identityData) {
+          continue;
+        }
+
+        const avatarUrl = identityData.avatar_url;
+        if (typeof avatarUrl === 'string' && avatarUrl.trim()) {
+          providerAvatarUrl = avatarUrl;
+          break;
+        }
+
+        const picture = identityData.picture;
+        if (typeof picture === 'string' && picture.trim()) {
+          providerAvatarUrl = picture;
+          break;
+        }
+      }
+
+      if (!providerAvatarUrl) {
+        const metadataAvatarUrl = sessionUser?.user_metadata?.avatar_url;
+        providerAvatarUrl = typeof metadataAvatarUrl === 'string' && metadataAvatarUrl.trim() ? metadataAvatarUrl : null;
+      }
       
       return {
         ...dbUser,
@@ -192,6 +197,7 @@ export default function ProfilePage() {
       setStateProv(user.state_region || '');
       setPostalCode(user.postal_code || '');
       setBio(user.bio || '');
+      setAvatarUploadError(null);
       setPersistedAvatarUrl(
         isLegacyCartoonAvatarUrl(user.avatar_url) && user.providerAvatarUrl
           ? user.providerAvatarUrl
@@ -289,6 +295,99 @@ export default function ProfilePage() {
 
   const handleFulfill = async (id: string) => {
     fulfillMutation.mutate(id);
+  };
+
+  const handleAvatarFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarUploadError('Please choose an image file.');
+      event.target.value = '';
+      return;
+    }
+
+    const maxFileSizeBytes = 4 * 1024 * 1024;
+    if (file.size > maxFileSizeBytes) {
+      setAvatarUploadError('Please upload an image smaller than 4 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    setAvatarUploadError(null);
+    setIsAvatarUploading(true);
+
+    try {
+      const {
+        data: { user: authUser },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (!authUser) {
+        throw new Error('You need to be signed in to upload a profile image.');
+      }
+
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const bucket = getProfileAvatarsBucket();
+      const filePath = `${authUser.id}/${crypto.randomUUID()}.${extension}`;
+
+      const { error: uploadFailure } = await supabase.storage.from(bucket).upload(filePath, file, {
+        cacheControl: '3600',
+        contentType: file.type,
+        upsert: false,
+      });
+
+      if (uploadFailure) {
+        throw uploadFailure;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(bucket).getPublicUrl(filePath);
+
+      if (!publicUrl) {
+        throw new Error('Avatar upload succeeded, but no public URL was returned.');
+      }
+
+      const trimmedDisplayName = displayName.trim();
+      const trimmedEmail = email.trim();
+      const trimmedBio = bio.trim();
+      const trimmedCity = city.trim();
+      const trimmedCountry = country.trim();
+      const trimmedState = stateProv.trim();
+      const trimmedPostal = postalCode.trim();
+
+      const updatedUser = await apiClient.updateCurrentUser({
+        email: trimmedEmail,
+        display_name: trimmedDisplayName || trimmedEmail.split('@')[0] || 'LoopHarvest User',
+        avatar_url: publicUrl,
+        city: trimmedCity || null,
+        state_region: trimmedState || null,
+        postal_code: trimmedPostal || null,
+        country: trimmedCountry || null,
+        bio: trimmedBio || null,
+      });
+
+      setPersistedAvatarUrl(updatedUser.avatar_url);
+      void queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['requests'] });
+      triggerNotification('Profile image updated successfully.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to upload the profile image.';
+      setAvatarUploadError(
+        `${message} Make sure the Supabase bucket exists, is public, and allows authenticated uploads.`,
+      );
+    } finally {
+      setIsAvatarUploading(false);
+      event.target.value = '';
+    }
   };
 
   // Nav Settings Sidebar States
@@ -394,7 +493,7 @@ export default function ProfilePage() {
       const trimmedCountry = country.trim();
       const trimmedState = stateProv.trim();
       const trimmedPostal = postalCode.trim();
-      const nextAvatarUrl = persistedAvatarUrl ?? user?.avatar_url ?? "";
+      const nextAvatarUrl = persistedAvatarUrl ?? user?.avatar_url ?? null;
 
       return apiClient.updateCurrentUser({
         email: trimmedEmail,
@@ -412,11 +511,7 @@ export default function ProfilePage() {
       void queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       void queryClient.invalidateQueries({ queryKey: ['listings'] });
       void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      triggerNotification(
-        updatedUser.email !== user?.email
-          ? 'Account profile saved. If Supabase requires email reconfirmation, check your inbox.'
-          : 'Account profile settings saved successfully!'
-      );
+      triggerNotification('Account profile settings saved successfully!');
     },
     onError: (err) => {
       triggerNotification(err instanceof Error ? err.message : 'Unable to save account profile settings.');
@@ -648,7 +743,7 @@ export default function ProfilePage() {
       // 1. ORIGINAL PROFILE & STATISTICS VIEW
       case 'profile-stats': {
         const computedLocation = [city, stateProv, country].filter(Boolean).join(', ') || 'No location specified';
-        const avatarUrl = persistedAvatarUrl ?? user?.avatar_url ?? "https://www.gravatar.com/avatar/?d=mp&s=256";
+        const avatarUrl = persistedAvatarUrl ?? user?.avatar_url ?? null;
         return (
           <MyProfileStats
             stats={stats}
@@ -671,13 +766,12 @@ export default function ProfilePage() {
 
       // 2. ACCOUNT PROFILE DETAILS EDIT
       case 'account-details':
-        const avatarPreviewUrl = persistedAvatarUrl ?? user?.avatar_url ?? "https://www.gravatar.com/avatar/?d=mp&s=256";
+        const avatarPreviewUrl = persistedAvatarUrl ?? user?.avatar_url ?? null;
         return (
           <Account
             displayName={displayName}
             setDisplayName={setDisplayName}
             email={email}
-            setEmail={setEmail}
             city={city}
             setCity={setCity}
             stateProv={stateProv}
@@ -689,6 +783,9 @@ export default function ProfilePage() {
             bio={bio}
             setBio={setBio}
             avatarPreviewUrl={avatarPreviewUrl}
+            isAvatarUploading={isAvatarUploading}
+            avatarUploadError={avatarUploadError}
+            onAvatarFileSelect={handleAvatarFileSelect}
             savePending={saveProfileMutation.isPending}
             handleSaveProfile={handleSaveProfile}
           />

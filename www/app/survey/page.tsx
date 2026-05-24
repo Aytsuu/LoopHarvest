@@ -297,6 +297,8 @@ export default function UserSurveyPage() {
   const [isFinishing, setIsFinishing] = React.useState(false);
   const [finishingStep, setFinishingStep] = React.useState(0);
 
+  const completeSurveyRedirect = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   React.useEffect(() => {
     let isMounted = true;
 
@@ -325,6 +327,9 @@ export default function UserSurveyPage() {
     checkSession();
     return () => {
       isMounted = false;
+      if (completeSurveyRedirect.current) {
+        clearTimeout(completeSurveyRedirect.current);
+      }
     };
   }, [router]);
 
@@ -391,7 +396,10 @@ export default function UserSurveyPage() {
       const supabase = createClient();
       const surveyPayload = toSurveyPayload(answers);
       await apiClient.saveCurrentUserSurvey(surveyPayload);
-      await notificationService.saveSettings(supabase, {
+
+      setFinishingStep(3);
+
+      const saveSettingsPromise = notificationService.saveSettings(supabase, {
         alertRadius: answers.location_radius,
         pushAlerts: answers.notifications.channels.push,
         emailDigest: answers.notifications.channels.email,
@@ -404,14 +412,27 @@ export default function UserSurveyPage() {
         quietHoursEnd: "08:00",
         typePreferences: buildNotificationTypePreferences(answers),
       });
-      setTimeout(() => {
+
+      void Promise.race([
+        saveSettingsPromise,
+        new Promise((resolve) => setTimeout(resolve, 2500)),
+      ]).catch((error) => {
+        console.error("Failed to persist onboarding notification settings:", error);
+      });
+
+      clearInterval(interval);
+      completeSurveyRedirect.current = setTimeout(() => {
         router.replace("/home");
-      }, 3600);
+        router.refresh();
+      }, 900);
     } catch (err) {
       console.error("Failed to persist onboarding preferences:", err);
       clearInterval(interval);
       setIsFinishing(false);
       setValidationError(err instanceof Error ? err.message : "We couldn't save your survey yet.");
+      return;
+    } finally {
+      clearInterval(interval);
     }
   };
 

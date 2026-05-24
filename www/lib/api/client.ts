@@ -89,7 +89,7 @@ export const apiClient = {
   updateCurrentUser(payload: {
     email: string;
     display_name: string;
-    avatar_url: string;
+    avatar_url: string | null;
     city: string | null;
     state_region: string | null;
     postal_code: string | null;
@@ -168,7 +168,7 @@ export const apiClient = {
   },
   saveCurrentUserSurvey(payload: ApiSurveyPayload) {
     return request<ApiSurvey>("/survey/me", {
-      method: "PUT",
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },

@@ -1,19 +1,17 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, User, PlusCircle, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, PlusCircle, ArrowLeft } from 'lucide-react';
 
 import StarsBackground from "@/components/StarsBackground";
-import { buildAuthCallbackUrl } from "@/lib/auth/redirect-url";
-import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [role, setRole] = React.useState<'donor' | 'recipient'>('donor');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
   const [error, setError] = React.useState('');
   const [notice, setNotice] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
@@ -21,8 +19,18 @@ export default function SignupPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!name || !email || !password) {
+    if (!email || !password) {
       setError('Please fill in all fields');
+      return;
+    }
+
+    if (password && !confirmPassword) {
+      setError('Please confirm your password');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
 
@@ -31,31 +39,23 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-            role,
-          },
-          emailRedirectTo: buildAuthCallbackUrl('/home'),
+      const response = await fetch('/api/auth/email-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       });
-
-      if (signUpError) {
-        throw signUpError;
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error?.message || 'Unable to create your account right now.');
       }
 
-      if (data.session) {
-        router.replace('/home');
-        router.refresh();
-        return;
-      }
-
-      setNotice('Account created. Redirecting you to sign in instructions...');
-      router.replace(`/login?signup=check-email&email=${encodeURIComponent(email)}`);
+      setNotice('Verification email sent. Redirecting you to your inbox instructions...');
+      router.replace(`/signup/check-email?email=${encodeURIComponent(email)}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create your account right now.');
@@ -83,8 +83,13 @@ export default function SignupPage() {
 
       <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-white/8 bg-[#141414]/80 p-8 shadow-[0_16px_48px_rgba(0,0,0,0.8)] backdrop-blur-md">
         <div className="mb-6 flex flex-col items-center text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="LoopHarvest" className="mb-3 h-12 w-12 rounded-2xl object-contain shadow-lg" />
+          <Image
+            src="/logo.png"
+            alt="LoopHarvest"
+            width={48}
+            height={48}
+            className="mb-3 h-12 w-12 object-contain"
+          />
           <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#FFFFFF]">
             Create Loop Account
           </h2>
@@ -105,55 +110,7 @@ export default function SignupPage() {
           </div>
         )}
 
-        <div className="mb-5 space-y-1.5">
-          <span className="text-xs font-bold text-[#A3A3A3]">Select Your Primary Role</span>
-          <div className="flex rounded-xl border border-white/6 bg-[#0A0A0A]/60 p-1">
-            <button
-              type="button"
-              onClick={() => setRole('donor')}
-              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
-                role === 'donor'
-                  ? 'bg-[#2A4A10] text-[#A8D97F]'
-                  : 'text-[#A3A3A3] hover:text-[#FFFFFF]'
-              }`}
-            >
-              Waste Donor
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole('recipient')}
-              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
-                role === 'recipient'
-                  ? 'bg-[#2A4A10] text-[#A8D97F]'
-                  : 'text-[#A3A3A3] hover:text-[#FFFFFF]'
-              }`}
-            >
-              Waste Recipient
-            </button>
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="name">
-              Organization or Name
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-[#525252]">
-                <User size={16} />
-              </span>
-              <input
-                id="name"
-                type="text"
-                placeholder="Tartine Bakery"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={isLoading}
-                className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
-              />
-            </div>
-          </div>
-
           <div className="space-y-1">
             <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="email">
               Email Address
@@ -188,6 +145,26 @@ export default function SignupPage() {
                 placeholder="At least 6 characters"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                disabled={isLoading}
+                className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-[#A3A3A3]" htmlFor="confirmPassword">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-3 flex items-center text-[#525252]">
+                <Lock size={16} />
+              </span>
+              <input
+                id="confirmPassword"
+                type="password"
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
                 disabled={isLoading}
                 className="h-11 w-full rounded-xl border border-white/10 bg-[#0A0A0A]/60 pl-10 pr-4 text-sm text-[#FFFFFF] placeholder-[#525252] transition-all focus:border-[#A8D97F] focus:outline-none disabled:opacity-50"
               />

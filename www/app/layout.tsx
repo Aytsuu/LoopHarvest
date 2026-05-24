@@ -31,6 +31,11 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: "LoopHarvest",
   description: "Hyperlocal circular economy platform for food waste recovery",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

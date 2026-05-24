@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Apple, MessageSquare, Check, LogOut } from 'lucide-react';
+import { X, Apple, MessageSquare, Check, LogOut, AlertCircle, Info } from 'lucide-react';
 import BottomNav from '@/components/navigation/BottomNav';
 import NavigationRail from '@/components/navigation/NavigationRail';
 import { logout } from '@/app/login/actions';
@@ -10,12 +10,39 @@ import { NotificationClientProvider } from '@/components/common/NotificationClie
 import { ReleaseNotificationProvider } from '@/components/common/ReleaseNotificationProvider';
 import type { NotificationItem } from '@/lib/api/types';
 
+type ToastState = {
+  key?: string;
+  message: string;
+  show: boolean;
+  type?: 'success' | 'error' | 'info' | 'warning';
+  actionUrl?: string | null;
+  actionLabel?: string | null;
+  actionEvent?: string | null;
+  persistent?: boolean;
+  dismissible?: boolean;
+  dismissEvent?: string | null;
+};
+
+type ToastEventDetail = {
+  key?: string;
+  message?: string;
+  type?: 'success' | 'error' | 'info' | 'warning';
+  actionUrl?: string | null;
+  actionLabel?: string | null;
+  actionEvent?: string | null;
+  persistent?: boolean;
+  dismissible?: boolean;
+  dismissEvent?: string | null;
+  dismissKey?: string;
+};
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
   const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = React.useState(false);
-  const [toast, setToast] = React.useState<{ message: string; show: boolean; actionUrl?: string | null }>({ message: '', show: false });
+  const [toast, setToast] = React.useState<ToastState>({ message: '', show: false });
+  const toastTimerRef = React.useRef<number | null>(null);
 
   const triggerPostSheet = () => {
     setIsPostSheetOpen(prev => !prev);
@@ -26,12 +53,118 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.push(path);
   };
 
-  const showToastNotification = (msg: string, actionUrl?: string | null) => {
-    setToast({ message: msg, show: true, actionUrl });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }));
-    }, 4000);
-  };
+  const clearToastTimer = React.useCallback(() => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+  }, []);
+
+  const showToastNotification = React.useCallback((
+    msg: string,
+    options?: {
+      type?: 'success' | 'error' | 'info' | 'warning';
+      actionUrl?: string | null;
+      actionLabel?: string | null;
+      actionEvent?: string | null;
+      persistent?: boolean;
+      dismissible?: boolean;
+      key?: string;
+      dismissEvent?: string | null;
+    },
+  ) => {
+    clearToastTimer();
+
+    // Auto-detect error or warning state based on message keywords
+    let detectedType = options?.type;
+    if (!detectedType) {
+      const lower = msg.toLowerCase();
+      if (lower.includes('error') || lower.includes('fail') || lower.includes('unable') || lower.includes('cannot') || lower.includes('invalid') || lower.includes('reject')) {
+        detectedType = 'error';
+      } else if (lower.includes('warn') || lower.includes('alert') || lower.includes('attention')) {
+        detectedType = 'warning';
+      } else {
+        detectedType = 'success';
+      }
+    }
+
+    setToast({
+      key: options?.key,
+      message: msg,
+      show: true,
+      type: detectedType,
+      actionUrl: options?.actionUrl,
+      actionLabel: options?.actionLabel,
+      actionEvent: options?.actionEvent,
+      persistent: options?.persistent ?? false,
+      dismissible: options?.dismissible ?? true, // Default to true so close buttons show by default
+      dismissEvent: options?.dismissEvent,
+    });
+
+    if (!options?.persistent) {
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast(prev => ({ ...prev, show: false }));
+      }, 4000);
+    }
+  }, [clearToastTimer]);
+
+  const dismissToast = React.useCallback(() => {
+    clearToastTimer();
+    if (toast.dismissEvent) {
+      window.dispatchEvent(new CustomEvent(toast.dismissEvent));
+    }
+    setToast(prev => ({ ...prev, show: false }));
+  }, [clearToastTimer, toast.dismissEvent]);
+
+  React.useEffect(() => {
+    return () => clearToastTimer();
+  }, [clearToastTimer]);
+
+  const triggerToastAction = React.useCallback(() => {
+    if (toast.actionEvent) {
+      dismissToast();
+      window.dispatchEvent(new CustomEvent(toast.actionEvent));
+      return;
+    }
+
+    if (toast.actionUrl) {
+      dismissToast();
+      router.push(toast.actionUrl);
+    }
+  }, [dismissToast, router, toast.actionEvent, toast.actionUrl]);
+
+  React.useEffect(() => {
+    const handleAppToast = (e: Event) => {
+      const customEvent = e as CustomEvent<ToastEventDetail>;
+      const detail = customEvent.detail;
+      if (!detail) {
+        return;
+      }
+
+      if (detail.dismissKey) {
+        setToast(prev => prev.key === detail.dismissKey ? { ...prev, show: false } : prev);
+        return;
+      }
+
+      if (!detail.message) {
+        return;
+      }
+
+      showToastNotification(detail.message, {
+        key: detail.key,
+        type: detail.type,
+        actionUrl: detail.actionUrl,
+        actionLabel: detail.actionLabel,
+        actionEvent: detail.actionEvent,
+        persistent: detail.persistent,
+        dismissible: detail.dismissible,
+        dismissEvent: detail.dismissEvent,
+      });
+    };
+
+    window.addEventListener('app-toast', handleAppToast);
+    return () => window.removeEventListener('app-toast', handleAppToast);
+  }, [showToastNotification]);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
 
@@ -72,7 +205,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('post-created', handlePostCreated);
     return () => window.removeEventListener('post-created', handlePostCreated);
-  }, []);
+  }, [showToastNotification]);
 
   React.useEffect(() => {
     const handleNotificationToast = (e: Event) => {
@@ -82,12 +215,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      showToastNotification(notification.title, notification.actionUrl);
+      showToastNotification(notification.title, { actionUrl: notification.actionUrl, actionLabel: 'View' });
     };
 
     window.addEventListener('notification-toast', handleNotificationToast);
     return () => window.removeEventListener('notification-toast', handleNotificationToast);
-  }, []);
+  }, [showToastNotification]);
 
   // Listen to custom signout events (for mobile settings triggers)
   React.useEffect(() => {
@@ -241,25 +374,52 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Snackbar / Toast Notifications */}
       {toast.show && (
         <div className="fixed bottom-24 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4 transition-all duration-300 md:bottom-6">
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-[#323232] px-4 py-3 text-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.7)] border border-white/10 animate-fade-in">
-            <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#A8D97F]/10 text-[#A8D97F]">
-              <Check size={14} strokeWidth={2.5} />
+          <div className="flex items-start justify-between gap-4 rounded-xl bg-[#141414]/95 backdrop-blur-md border border-white/10 px-4 py-3.5 text-[#FFFFFF] shadow-[0_12px_40px_rgba(0,0,0,0.6)] animate-fade-in">
+            <div className="flex min-w-0 items-start gap-3 flex-1">
+              {toast.type === 'error' ? (
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#E05656]/15 text-[#E05656]">
+                  <AlertCircle size={14} strokeWidth={2.5} />
+                </div>
+              ) : toast.type === 'warning' ? (
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#E8A838]/15 text-[#E8A838]">
+                  <AlertCircle size={14} strokeWidth={2.5} />
+                </div>
+              ) : toast.type === 'info' ? (
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#3B82F6]/15 text-[#3B82F6]">
+                  <Info size={14} strokeWidth={2.5} />
+                </div>
+              ) : (
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#A8D97F]/15 text-[#A8D97F]">
+                  <Check size={14} strokeWidth={2.5} />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 py-1">
+                <p className="text-xs font-semibold text-[#FFFFFF] leading-normal break-words whitespace-normal">
+                  {toast.message}
+                </p>
+              </div>
             </div>
-              <p className="truncate text-xs font-semibold">{toast.message}</p>
+            <div className="flex shrink-0 items-center gap-2.5 pl-1 self-start py-1">
+              {toast.actionUrl || toast.actionEvent ? (
+                <button
+                  type="button"
+                  onClick={triggerToastAction}
+                  className="shrink-0 text-xs font-bold text-[#A8D97F] hover:text-[#C4F09A] transition duration-150 cursor-pointer active:scale-95"
+                >
+                  {toast.actionLabel ?? 'View'}
+                </button>
+              ) : null}
+              {toast.dismissible ? (
+                <button
+                  type="button"
+                  onClick={dismissToast}
+                  className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full text-[#A3A3A3] hover:bg-white/8 hover:text-[#FFFFFF] transition duration-150 cursor-pointer active:scale-95"
+                  aria-label="Dismiss toast"
+                >
+                  <X size={14} strokeWidth={2.5} />
+                </button>
+              ) : null}
             </div>
-            {toast.actionUrl ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setToast((prev) => ({ ...prev, show: false }));
-                  router.push(toast.actionUrl!);
-                }}
-                className="shrink-0 text-[11px] font-bold text-[#A8D97F] transition hover:text-[#C4F09A]"
-              >
-                View
-              </button>
-            ) : null}
           </div>
         </div>
       )}

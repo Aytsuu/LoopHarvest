@@ -8,7 +8,8 @@ import {
   Heart, 
   BookOpen, 
   Award, 
-  Sparkles 
+  Sparkles,
+  Inbox
 } from 'lucide-react';
 import type { Listing, RequestItem, UserStats } from '@/lib/api/types';
 import ListingCard from '@/components/cards/ListingCard';
@@ -22,7 +23,7 @@ export interface MyProfileStatsProps {
   activeTab: 'listings' | 'requests' | 'claims';
   setActiveTab: (tab: 'listings' | 'requests' | 'claims') => void;
   displayName: string;
-  avatarUrl: string;
+  avatarUrl: string | null;
   isPremium: boolean;
   joinedLabel: string;
   location: string;
@@ -51,7 +52,8 @@ export default function MyProfileStats({
   const userLevel = Math.floor(stats.loopPoints / 100) + 1;
   const currentLevelXP = stats.loopPoints % 100;
   const xpProgressPercent = currentLevelXP; // out of 100
-  console.log(avatarUrl)
+  const initial = displayName.trim().charAt(0).toUpperCase() || "L";
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header profile intro */}
@@ -59,12 +61,18 @@ export default function MyProfileStats({
         <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 h-36 w-36 rounded-full bg-[#A8D97F]/10 blur-3xl pointer-events-none select-none" />
         
         <div className="relative shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={avatarUrl}
-            alt="Avatar"
-            className="h-24 w-24 rounded-full border-4 border-[#2A4A10] bg-[#141414]"
-          />
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarUrl}
+              alt="Avatar"
+              className="h-24 w-24 rounded-full border-4 border-[#2A4A10] bg-[#141414] object-cover"
+            />
+          ) : (
+            <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#2A4A10] bg-[#141414] text-3xl font-black text-[#A8D97F]">
+              {initial}
+            </div>
+          )}
           <span className="absolute -bottom-2 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#A8D97F] text-xs font-black text-[#1A3A05] border-2 border-[#1B1B1B] shadow-md font-mono">
             {userLevel}
           </span>
@@ -185,8 +193,11 @@ export default function MyProfileStats({
               ))}
             </div>
           ) : (
-            <div className="py-12 text-center text-xs text-[#525252] bg-[#1B1B1B] border border-white/6 rounded-2xl">
-              You haven&apos;t posted any waste materials yet. Select Create Post to get started.
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Inbox size={40} className="mb-3 stroke-1 text-neutral-600" />
+              <span className="text-xs text-[#525252]">
+                You haven&apos;t posted any waste materials yet. Select Create Post to get started.
+              </span>
             </div>
           )
         ) : activeTab === 'requests' ? (
@@ -197,8 +208,11 @@ export default function MyProfileStats({
               ))}
             </div>
           ) : (
-            <div className="py-12 text-center text-xs text-[#525252] bg-[#1B1B1B] border border-white/6 rounded-2xl">
-              You haven&apos;t requested any scraps yet.
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Inbox size={40} className="mb-3 stroke-1 text-neutral-600" />
+              <span className="text-xs text-[#525252]">
+                You haven&apos;t requested any scraps yet.
+              </span>
             </div>
           )
         ) : (
@@ -209,8 +223,11 @@ export default function MyProfileStats({
               ))}
             </div>
           ) : (
-            <div className="py-12 text-center text-xs text-[#525252] bg-[#1B1B1B] border border-white/6 rounded-2xl">
-              You haven&apos;t claimed any waste materials yet. Browse available scraps to start harvesting!
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Inbox size={40} className="mb-3 stroke-1 text-neutral-600" />
+              <span className="text-xs text-[#525252]">
+                You haven&apos;t claimed any waste materials yet. Browse available scraps to start harvesting!
+              </span>
             </div>
           )
         )}

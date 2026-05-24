@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock, Mail, ShieldCheck, ArrowLeft } from 'lucide-react';
 
@@ -111,8 +112,13 @@ function LoginPageContent() {
 
       <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-white/8 bg-[#141414]/80 p-8 shadow-[0_16px_48px_rgba(0,0,0,0.8)] backdrop-blur-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="LoopHarvest" className="mb-3 h-12 w-12 rounded-2xl object-contain shadow-lg" />
+          <Image
+            src="/logo.png"
+            alt="LoopHarvest"
+            width={48}
+            height={48}
+            className="mb-3 h-12 w-12 object-contain"
+          />
           <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#FFFFFF]">
             Sign in to LoopHarvest
           </h2>

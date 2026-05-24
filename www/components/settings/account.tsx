@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import { 
+  Camera,
+  Loader2,
   Save 
 } from 'lucide-react';
 
@@ -9,7 +11,6 @@ export interface AccountProps {
   displayName: string;
   setDisplayName: (val: string) => void;
   email: string;
-  setEmail: (val: string) => void;
   city: string;
   setCity: (val: string) => void;
   stateProv: string;
@@ -20,7 +21,10 @@ export interface AccountProps {
   setCountry: (val: string) => void;
   bio: string;
   setBio: (val: string) => void;
-  avatarPreviewUrl: string;
+  avatarPreviewUrl: string | null;
+  isAvatarUploading: boolean;
+  avatarUploadError: string | null;
+  onAvatarFileSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
   savePending: boolean;
   handleSaveProfile: (e: React.FormEvent) => Promise<void>;
 }
@@ -29,7 +33,6 @@ export default function Account({
   displayName,
   setDisplayName,
   email,
-  setEmail,
   city,
   setCity,
   stateProv,
@@ -41,9 +44,15 @@ export default function Account({
   bio,
   setBio,
   avatarPreviewUrl,
+  isAvatarUploading,
+  avatarUploadError,
+  onAvatarFileSelect,
   savePending,
   handleSaveProfile,
 }: AccountProps) {
+  const initial = displayName.trim().charAt(0).toUpperCase() || "L";
+  const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
+
   return (
     <form onSubmit={handleSaveProfile} className="space-y-6 animate-fade-in">
       <div>
@@ -55,17 +64,56 @@ export default function Account({
         <label className="text-xs font-bold text-[#A3A3A3] uppercase tracking-wider block">Profile Image</label>
         <div className="rounded-2xl border border-white/6 bg-[#111111] p-4">
           <div className="flex items-center gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={avatarPreviewUrl}
-              alt="Profile preview"
-              className="h-16 w-16 rounded-full border border-white/10 bg-[#141414] object-cover"
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onAvatarFileSelect}
+              className="hidden"
             />
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isAvatarUploading}
+              className="group relative shrink-0 rounded-full transition disabled:cursor-wait disabled:opacity-80"
+              aria-label="Choose profile image"
+            >
+              {avatarPreviewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarPreviewUrl}
+                  alt="Profile preview"
+                  className="h-16 w-16 rounded-full border border-white/10 bg-[#141414] object-cover"
+                />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-[#1B1B1B] text-lg font-black text-[#A8D97F]">
+                  {initial}
+                </div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 opacity-0 transition group-hover:opacity-100">
+                {isAvatarUploading ? (
+                  <Loader2 size={18} className="animate-spin text-[#A8D97F]" />
+                ) : (
+                  <Camera size={18} className="text-[#A8D97F]" />
+                )}
+              </div>
+            </button>
             <div>
-              <p className="text-xs font-bold text-[#FFFFFF]">Email profile image enabled</p>
-              <p className="mt-1 text-[11px] text-[#8C8F7E]">
-                This profile image comes from your authenticated account provider and is the only avatar source used across LoopHarvest.
+              <p className="text-xs font-bold text-[#FFFFFF]">
+                {avatarPreviewUrl ? "Profile image selected" : "No profile image on this account"}
               </p>
+              <p className="mt-1 text-[11px] text-[#8C8F7E]">
+                {avatarPreviewUrl
+                  ? "Click the avatar to replace it. Uploading updates the preview immediately; save profile to persist it."
+                  : "Click the avatar to choose an image. Uploading updates the preview immediately; save profile to persist it."}
+              </p>
+              {avatarUploadError ? (
+                <p className="mt-2 text-[10px] font-medium text-[#F87171]">{avatarUploadError}</p>
+              ) : (
+                <p className="mt-2 text-[10px] font-medium text-[#8C8F7E]">
+                  Recommended: square image, under 4 MB.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -87,9 +135,11 @@ export default function Account({
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full h-11 bg-white/4 border border-white/8 rounded-xl px-4 text-sm font-semibold text-[#FFFFFF] focus:outline-none focus:border-[#A8D97F] transition-colors"
+            disabled
+            readOnly
+            className="w-full h-11 cursor-not-allowed bg-white/3 border border-white/6 rounded-xl px-4 text-sm font-semibold text-[#8C8F7E] focus:outline-none"
           />
+          <p className="text-[10px] font-medium text-[#8C8F7E]">Email is verified during signup and cannot be changed here.</p>
         </div>
 
         {/* Complete Location Fields */}

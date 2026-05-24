@@ -18,7 +18,7 @@ type BroadcastForm = {
   title: string;
   body: string;
   action_url: string;
-  targetRole: 'all' | 'donor' | 'recipient' | 'both' | 'org' | 'admin';
+  targetRole: 'all' | 'customer' | 'admin';
 };
 
 const EMPTY_BROADCAST: BroadcastForm = {
@@ -145,7 +145,7 @@ export default function AdminBroadcasts() {
       }));
 
     if (notifications.length === 0) {
-      handleStatus('No user accounts matched the chosen target role filters.', 'error');
+      handleStatus('No user accounts matched the chosen account role filters.', 'error');
       setIsSending(false);
       return;
     }
@@ -243,7 +243,7 @@ export default function AdminBroadcasts() {
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#FFFFFF]">Dispatch Broadcast</h4>
           </div>
           <p className="text-[11px] text-[#A3A3A3] leading-relaxed font-semibold">
-            Draft and transmit immediate service-wide, maintenance, security or policy alert banners to custom target groups.
+            Draft and transmit immediate service-wide, maintenance, security or policy alert banners to customer or admin account groups.
           </p>
 
           <form onSubmit={sendBroadcast} className="space-y-4 pt-2">
@@ -270,10 +270,7 @@ export default function AdminBroadcasts() {
                   className="h-10 w-full rounded-xl border border-white/8 bg-white/4 px-3 text-xs font-semibold text-white focus:outline-none focus:border-[#A8D97F] cursor-pointer transition-colors duration-200"
                 >
                   <option value="all" className="bg-[#141414] text-white">All accounts</option>
-                  <option value="donor" className="bg-[#141414] text-white">Donors only</option>
-                  <option value="recipient" className="bg-[#141414] text-white">Recipients only</option>
-                  <option value="both" className="bg-[#141414] text-white">Donors & Recipients</option>
-                  <option value="org" className="bg-[#141414] text-white">Organizations</option>
+                  <option value="customer" className="bg-[#141414] text-white">Customers only</option>
                   <option value="admin" className="bg-[#141414] text-white">Administrators</option>
                 </select>
               </label>
