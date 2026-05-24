@@ -1,0 +1,1 @@
+"""User survey domain."""
