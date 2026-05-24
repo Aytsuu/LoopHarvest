@@ -6,13 +6,16 @@ import { X, Apple, MessageSquare, Check, LogOut } from 'lucide-react';
 import BottomNav from '@/components/navigation/BottomNav';
 import NavigationRail from '@/components/navigation/NavigationRail';
 import { logout } from '@/app/login/actions';
+import { NotificationClientProvider } from '@/components/common/NotificationClientProvider';
+import { ReleaseNotificationProvider } from '@/components/common/ReleaseNotificationProvider';
+import type { NotificationItem } from '@/lib/api/types';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
   const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = React.useState(false);
-  const [toast, setToast] = React.useState<{ message: string; show: boolean }>({ message: '', show: false });
+  const [toast, setToast] = React.useState<{ message: string; show: boolean; actionUrl?: string | null }>({ message: '', show: false });
 
   const triggerPostSheet = () => {
     setIsPostSheetOpen(prev => !prev);
@@ -23,8 +26,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.push(path);
   };
 
-  const showToastNotification = (msg: string) => {
-    setToast({ message: msg, show: true });
+  const showToastNotification = (msg: string, actionUrl?: string | null) => {
+    setToast({ message: msg, show: true, actionUrl });
     setTimeout(() => {
       setToast(prev => ({ ...prev, show: false }));
     }, 4000);
@@ -71,6 +74,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('post-created', handlePostCreated);
   }, []);
 
+  React.useEffect(() => {
+    const handleNotificationToast = (e: Event) => {
+      const customEvent = e as CustomEvent<NotificationItem>;
+      const notification = customEvent.detail;
+      if (!notification) {
+        return;
+      }
+
+      showToastNotification(notification.title, notification.actionUrl);
+    };
+
+    window.addEventListener('notification-toast', handleNotificationToast);
+    return () => window.removeEventListener('notification-toast', handleNotificationToast);
+  }, []);
+
   // Listen to custom signout events (for mobile settings triggers)
   React.useEffect(() => {
     const handleTriggerSignOut = () => {
@@ -81,7 +99,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-[#0A0A0A] text-[#FFFFFF]">
+    <NotificationClientProvider>
+      <ReleaseNotificationProvider>
+      <div className="relative min-h-screen bg-[#0A0A0A] text-[#FFFFFF]">
       {/* Navigation Rails & Drawers */}
       <NavigationRail
         onPostClick={triggerPostSheet}
@@ -221,14 +241,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Snackbar / Toast Notifications */}
       {toast.show && (
         <div className="fixed bottom-24 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4 transition-all duration-300 md:bottom-6">
-          <div className="flex items-center gap-3 rounded-xl bg-[#323232] px-4 py-3 text-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.7)] border border-white/10 animate-fade-in">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-[#323232] px-4 py-3 text-[#FFFFFF] shadow-[0_4px_16px_rgba(0,0,0,0.7)] border border-white/10 animate-fade-in">
+            <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#A8D97F]/10 text-[#A8D97F]">
               <Check size={14} strokeWidth={2.5} />
             </div>
-            <p className="text-xs font-semibold">{toast.message}</p>
+              <p className="truncate text-xs font-semibold">{toast.message}</p>
+            </div>
+            {toast.actionUrl ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setToast((prev) => ({ ...prev, show: false }));
+                  router.push(toast.actionUrl!);
+                }}
+                className="shrink-0 text-[11px] font-bold text-[#A8D97F] transition hover:text-[#C4F09A]"
+              >
+                View
+              </button>
+            ) : null}
           </div>
         </div>
       )}
-    </div>
+      </div>
+      </ReleaseNotificationProvider>
+    </NotificationClientProvider>
   );
 }

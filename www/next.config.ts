@@ -9,7 +9,7 @@ const apiProxyTarget = (process.env.API_PROXY_TARGET ?? "http://localhost:8000")
 
 const nextConfig: NextConfig = {
   // Allow mobile devices on the same LAN to load Next.js dev assets for hydration.
-  allowedDevOrigins: [...new Set(["192.168.1.2", ...configuredDevOrigins])],
+  allowedDevOrigins: [...new Set(["192.168.1.3", ...configuredDevOrigins])],
   async rewrites() {
     return [
       {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { buildRequestUrl } from "@/lib/http/request-origin";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -12,8 +13,7 @@ export async function GET(request: NextRequest) {
   const oauthErrorDescription = requestUrl.searchParams.get("error_description");
 
   if (oauthError || oauthErrorDescription) {
-    const errorRedirectUrl = new URL(request.url);
-    errorRedirectUrl.pathname = "/auth/error";
+    const errorRedirectUrl = buildRequestUrl(request, "/auth/error");
     errorRedirectUrl.searchParams.set("error", oauthError || "callback_error");
     errorRedirectUrl.searchParams.set("message", oauthErrorDescription || "Authentication provider reported an error.");
     return NextResponse.redirect(errorRedirectUrl);
@@ -26,24 +26,23 @@ export async function GET(request: NextRequest) {
       const supabase = await createClient();
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
-        const errorRedirectUrl = new URL(request.url);
-        errorRedirectUrl.pathname = "/auth/error";
+        const errorRedirectUrl = buildRequestUrl(request, "/auth/error");
         errorRedirectUrl.searchParams.set("error", "token_exchange_failed");
         errorRedirectUrl.searchParams.set("message", error.message);
         return NextResponse.redirect(errorRedirectUrl);
       }
     } catch (err) {
-      const errorRedirectUrl = new URL(request.url);
-      errorRedirectUrl.pathname = "/auth/error";
+      const errorRedirectUrl = buildRequestUrl(request, "/auth/error");
       errorRedirectUrl.searchParams.set("error", "internal_callback_error");
       errorRedirectUrl.searchParams.set("message", err instanceof Error ? err.message : "Failed to establish secure session.");
       return NextResponse.redirect(errorRedirectUrl);
     }
   }
 
-  const redirectUrl = new URL(request.url);
-  redirectUrl.pathname = next.startsWith("/") ? next : "/home";
-  redirectUrl.search = "";
+  const redirectUrl = buildRequestUrl(
+    request,
+    next.startsWith("/") ? next : "/home",
+  );
 
   return NextResponse.redirect(redirectUrl);
 }

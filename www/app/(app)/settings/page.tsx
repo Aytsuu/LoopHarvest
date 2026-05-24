@@ -10,11 +10,16 @@ import {
   CreditCard, 
   LogOut, 
   ArrowLeft, 
-  ChevronRight 
+  ChevronRight,
+  Megaphone,
+  Rss
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
+import { notificationService } from '@/lib/api/notifications';
+import { ensurePushSubscription, removePushSubscription } from '@/lib/notifications/push';
 import { toListingCardModel, toRequestCardModel, toUserStats } from '@/lib/api/mappers';
-import type { ApiListing, ApiRequest, UserStats } from '@/lib/api/types';
+import type { ApiListing, ApiRequest, NotificationSettingsFormData, UserStats } from '@/lib/api/types';
 import { createClient } from '@/lib/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -25,6 +30,8 @@ import Notifications from '@/components/settings/notifications';
 import Appearance from '@/components/settings/appearance';
 import SDG from '@/components/settings/sdg';
 import Billing from '@/components/settings/billing';
+import AdminBroadcasts from '@/components/settings/admin-broadcasts';
+import AdminReleases from '@/components/settings/admin-releases';
 
 function formatJoinedLabel(value: string | null | undefined) {
   if (!value) {
@@ -72,6 +79,7 @@ function extractProviderAvatarUrl(sessionUser: Awaited<ReturnType<ReturnType<typ
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
+  const [supabase] = React.useState(() => createClient());
   const [activeTab, setActiveTab] = React.useState<'listings' | 'requests' | 'claims'>('listings');
 
   // Form hydration state indicator
@@ -123,6 +131,11 @@ export default function ProfilePage() {
   const { data: impactSummary } = useQuery({
     queryKey: ['impact'],
     queryFn: apiClient.getImpactSummary,
+  });
+
+  const { data: notificationSettings } = useQuery({
+    queryKey: ['notification-settings'],
+    queryFn: () => notificationService.getSettings(supabase),
   });
 
   // Dynamically compute user's specific listings
@@ -284,9 +297,34 @@ export default function ProfilePage() {
 
   // 2. Notification Preferences
   const [emailDigest, setEmailDigest] = React.useState(true);
-  const [pushAlerts, setPushAlerts] = React.useState(true);
+  const [pushAlerts, setPushAlerts] = React.useState(false);
   const [ecoReports, setEcoReports] = React.useState(false);
   const [alertRadius, setAlertRadius] = React.useState(15);
+  const [quietHoursEnabled, setQuietHoursEnabled] = React.useState(false);
+  const [quietHoursStart, setQuietHoursStart] = React.useState('22:00');
+  const [quietHoursEnd, setQuietHoursEnd] = React.useState('08:00');
+  const [emailDigestFrequency, setEmailDigestFrequency] = React.useState<'realtime' | 'daily' | 'weekly' | 'never'>('daily');
+  const [typePreferences, setTypePreferences] = React.useState<NotificationSettingsFormData['typePreferences']>({});
+
+  React.useEffect(() => {
+    if (!notificationSettings) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setAlertRadius(notificationSettings.alertRadius);
+      setEmailDigest(notificationSettings.emailDigest);
+      setPushAlerts(notificationSettings.pushAlerts);
+      setEcoReports(notificationSettings.ecoReports);
+      setQuietHoursEnabled(notificationSettings.quietHoursEnabled);
+      setQuietHoursStart(notificationSettings.quietHoursStart);
+      setQuietHoursEnd(notificationSettings.quietHoursEnd);
+      setEmailDigestFrequency(notificationSettings.emailDigestFrequency);
+      setTypePreferences(notificationSettings.typePreferences);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [notificationSettings]);
 
   // 3. Appearance & Theme Preferences
   const [selectedTheme, setSelectedTheme] = React.useState(() => {
@@ -385,6 +423,25 @@ export default function ProfilePage() {
     },
   });
 
+  const saveNotificationSettingsMutation = useMutation({
+    mutationFn: async (settings: NotificationSettingsFormData) => {
+      if (settings.pushAlerts) {
+        await ensurePushSubscription(supabase);
+      } else {
+        await removePushSubscription(supabase);
+      }
+
+      return notificationService.saveSettings(supabase, settings);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['notification-settings'] });
+      triggerNotification('Notification configurations updated!');
+    },
+    onError: (err) => {
+      triggerNotification(err instanceof Error ? err.message : 'Unable to save notification settings.');
+    },
+  });
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     saveProfileMutation.mutate();
@@ -392,7 +449,17 @@ export default function ProfilePage() {
 
   const handleSaveNotifications = (e: React.FormEvent) => {
     e.preventDefault();
-    triggerNotification('Notification configurations updated!');
+    saveNotificationSettingsMutation.mutate({
+      alertRadius,
+      emailDigest,
+      pushAlerts,
+      ecoReports,
+      quietHoursEnabled,
+      quietHoursStart,
+      quietHoursEnd,
+      emailDigestFrequency,
+      typePreferences,
+    });
   };
 
   const handleSaveAppearance = (e: React.FormEvent) => {
@@ -424,44 +491,67 @@ export default function ProfilePage() {
   };
 
   // Sections configuration mapping
-  const sections = [
+  interface SettingsSection {
+    id: string;
+    label: string;
+    description: string;
+    icon: LucideIcon;
+  }
+
+  const sections: SettingsSection[] = [
     { 
       id: 'profile-stats', 
       label: 'My Profile & Stats', 
       description: 'Your level progress, score metrics, and active posts', 
-      icon: User 
+      icon: User,
     },
     { 
       id: 'account-details', 
       label: 'Account Settings', 
       description: 'Display name, location, contact, and custom avatar', 
-      icon: ShieldCheck 
+      icon: ShieldCheck,
     },
     { 
       id: 'notifications', 
       label: 'Notifications Alert', 
       description: 'Nearby alert thresholds and digest channels', 
-      icon: Bell 
+      icon: Bell,
     },
     { 
       id: 'appearance', 
       label: 'Appearance & Themes', 
       description: 'Tailored interfaces, layouts, and accessibility toggle', 
-      icon: Palette 
+      icon: Palette,
     },
     { 
       id: 'sustainability', 
       label: 'Sustainability Goals', 
       description: 'Annual diversion targets and scrap preferences', 
-      icon: Leaf 
+      icon: Leaf,
     },
     { 
       id: 'billing', 
       label: 'Billing & Sponsorship', 
       description: 'Premium subscription models and invoice logs', 
-      icon: CreditCard 
-    }
-  ];
+      icon: CreditCard,
+    },
+    ...(user?.role === 'admin'
+      ? [
+          {
+            id: 'admin-broadcasts',
+            label: 'Admin Broadcasts',
+            description: 'Configure delivery dispatch and send system-wide notices',
+            icon: Megaphone,
+          },
+          {
+            id: 'admin-releases',
+            label: 'Admin Releases',
+            description: 'Publish release banners, notices, and blocking updates',
+            icon: Rss,
+          },
+        ]
+      : []),
+    ];
 
   const handleSectionSelect = (id: string) => {
     setActiveSection(id);
@@ -470,38 +560,63 @@ export default function ProfilePage() {
 
   // Render Subsidebar List
   const renderSidebarList = (isMobileView: boolean) => {
+    const isAdmin = user?.role === 'admin';
+    const generalSections = sections.filter((sec) => !sec.id.startsWith('admin-'));
+    const adminSections = sections.filter((sec) => sec.id.startsWith('admin-'));
+
+    const renderSectionItem = (sec: SettingsSection) => {
+      const Icon = sec.icon;
+      const isActive = isMobileView ? mobileActiveSection === sec.id : activeSection === sec.id;
+      return (
+        <button
+          key={sec.id}
+          onClick={() => handleSectionSelect(sec.id)}
+          className={`group flex w-full items-start gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 border border-transparent ${
+            isActive
+              ? 'bg-[#2A4A10] text-[#A8D97F] border-[#A8D97F]/10'
+              : 'hover:bg-white/4 text-[#A3A3A3] hover:text-[#FFFFFF]'
+          }`}
+        >
+          <div className={`mt-0.5 p-1 rounded-lg shrink-0 ${isActive ? 'bg-[#1A3A05] text-[#A8D97F]' : 'bg-white/4 text-[#A3A3A3] group-hover:text-[#FFFFFF]'}`}>
+            <Icon size={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold block ${isActive ? 'text-[#A8D97F]' : 'text-[#FFFFFF]'}`}>
+                {sec.label}
+              </span>
+              <ChevronRight size={12} className={`opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'text-[#A8D97F]' : 'text-[#A3A3A3]'}`} />
+            </div>
+            <p className={`text-[10px] mt-0.5 leading-relaxed truncate font-medium ${isActive ? 'text-[#87B85E]' : 'text-[#8C8F7E]'}`}>
+              {sec.description}
+            </p>
+          </div>
+        </button>
+      );
+    };
+
     return (
-      <div className="space-y-1">
-        {sections.map((sec) => {
-          const Icon = sec.icon;
-          const isActive = isMobileView ? mobileActiveSection === sec.id : activeSection === sec.id;
-          return (
-            <button
-              key={sec.id}
-              onClick={() => handleSectionSelect(sec.id)}
-              className={`group flex w-full items-start gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 border border-transparent ${
-                isActive
-                  ? 'bg-[#2A4A10] text-[#A8D97F] border-[#A8D97F]/10'
-                  : 'hover:bg-white/4 text-[#A3A3A3] hover:text-[#FFFFFF]'
-              }`}
-            >
-              <div className={`mt-0.5 p-1 rounded-lg shrink-0 ${isActive ? 'bg-[#1A3A05] text-[#A8D97F]' : 'bg-white/4 text-[#A3A3A3] group-hover:text-[#FFFFFF]'}`}>
-                <Icon size={16} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs font-bold block ${isActive ? 'text-[#A8D97F]' : 'text-[#FFFFFF]'}`}>
-                    {sec.label}
-                  </span>
-                  <ChevronRight size={12} className={`opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'text-[#A8D97F]' : 'text-[#A3A3A3]'}`} />
-                </div>
-                <p className={`text-[10px] mt-0.5 leading-relaxed truncate font-medium ${isActive ? 'text-[#87B85E]' : 'text-[#8C8F7E]'}`}>
-                  {sec.description}
-                </p>
-              </div>
-            </button>
-          );
-        })}
+      <div className="space-y-4">
+        {/* General Settings */}
+        <div className="space-y-1">
+          {isAdmin && (
+            <div className="px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-[#8C8F7E]">
+              General Settings
+            </div>
+          )}
+          {generalSections.map(renderSectionItem)}
+        </div>
+
+        {/* Administrative Controls */}
+        {isAdmin && adminSections.length > 0 && (
+          <div className="space-y-1 pt-3 border-t border-white/6">
+            <div className="px-3.5 py-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-[#8C8F7E]">
+              Administrative
+            </div>
+            {adminSections.map(renderSectionItem)}
+          </div>
+        )}
+
         {isMobileView && (
           <div className="pt-4 border-t border-white/6 mt-4 px-1">
             <button
@@ -591,6 +706,17 @@ export default function ProfilePage() {
             setPushAlerts={setPushAlerts}
             ecoReports={ecoReports}
             setEcoReports={setEcoReports}
+            quietHoursEnabled={quietHoursEnabled}
+            setQuietHoursEnabled={setQuietHoursEnabled}
+            quietHoursStart={quietHoursStart}
+            setQuietHoursStart={setQuietHoursStart}
+            quietHoursEnd={quietHoursEnd}
+            setQuietHoursEnd={setQuietHoursEnd}
+            emailDigestFrequency={emailDigestFrequency}
+            setEmailDigestFrequency={setEmailDigestFrequency}
+            typePreferences={typePreferences}
+            setTypePreferences={setTypePreferences}
+            savePending={saveNotificationSettingsMutation.isPending}
             handleSaveNotifications={handleSaveNotifications}
           />
         );
@@ -633,6 +759,14 @@ export default function ProfilePage() {
             handleUpgradePremium={handleUpgradePremium}
           />
         );
+
+      // 7. ADMIN-ONLY SYSTEM BROADCASTS CONFIGURATION
+      case 'admin-broadcasts':
+        return <AdminBroadcasts />;
+
+      // 8. ADMIN-ONLY SYSTEM RELEASES MANAGEMENT
+      case 'admin-releases':
+        return <AdminReleases />;
 
       default:
         return null;

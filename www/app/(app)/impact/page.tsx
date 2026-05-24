@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BarChart2, CloudLightning, Droplet, Leaf, TrendingUp } from 'lucide-react';
 
@@ -18,22 +19,19 @@ const EMPTY_STATS: UserStats = {
 };
 
 export default function ImpactAnalyticsPage() {
-  const [stats, setStats] = React.useState<UserStats>(EMPTY_STATS);
-  const [error, setError] = React.useState<string | null>(null);
+  const { data: impactSummary, error: queryError } = useQuery({
+    queryKey: ['impact'],
+    queryFn: apiClient.getImpactSummary,
+  });
 
-  React.useEffect(() => {
-    const loadSummary = async () => {
-      try {
-        setError(null);
-        const summary = await apiClient.getImpactSummary();
-        setStats(toUserStats(summary));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unable to load impact data.');
-      }
-    };
+  const stats = React.useMemo<UserStats>(() => {
+    if (!impactSummary) {
+      return EMPTY_STATS;
+    }
+    return toUserStats(impactSummary);
+  }, [impactSummary]);
 
-    void loadSummary();
-  }, []);
+  const error = queryError instanceof Error ? queryError.message : null;
 
   const weeklyData = [
     { day: 'Mon', kg: +(stats.kgDiverted * 0.15).toFixed(1) },

@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
-import { notificationService } from '@/lib/api/notifications';
 import { countUnreadThreads, fetchChatThreads } from '@/lib/chat';
+import { useNotificationClient } from '@/components/common/NotificationClientProvider';
 import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 
 interface NavigationRailProps {
@@ -18,9 +18,9 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
   const router = useRouter();
   const pathname = usePathname();
   const [supabase] = React.useState(() => createSupabaseClient());
+  const { unreadCount } = useNotificationClient();
 
   const [mounted, setMounted] = React.useState(false);
-  const [unreadCount, setUnreadCount] = React.useState(0);
   const [chatUnreadCount, setChatUnreadCount] = React.useState(0);
 
   React.useEffect(() => {
@@ -30,8 +30,6 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
   }, []);
 
   const updateCount = React.useCallback(async () => {
-    setUnreadCount(notificationService.getNotifications().filter(n => n.status === 'unread').length);
-
     try {
       const {
         data: { user },

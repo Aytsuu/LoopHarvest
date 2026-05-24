@@ -2,9 +2,10 @@
 
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 import StarsBackground from "@/components/StarsBackground";
+import { buildAuthCallbackUrl } from "@/lib/auth/redirect-url";
 import { createClient } from "@/lib/supabase/client";
 
 function LoginPageContent() {
@@ -76,7 +77,7 @@ function LoginPageContent() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/home`,
+          redirectTo: buildAuthCallbackUrl('/home'),
         },
       });
 
@@ -91,6 +92,15 @@ function LoginPageContent() {
 
   return (
     <main className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-[#0A0A0A] px-4">
+      {/* Back to landing button */}
+      <button
+        onClick={() => router.push('/')}
+        className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-4 py-2 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-[#FFFFFF] active:scale-95 group"
+      >
+        <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
+        <span>Back to Landing</span>
+      </button>
+
       <div className="absolute inset-0 z-0 select-none opacity-50 pointer-events-none">
         <StarsBackground />
       </div>

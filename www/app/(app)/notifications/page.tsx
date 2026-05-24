@@ -1,37 +1,99 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Bell, Trash2, CheckCircle2, Inbox, Calendar, MessageSquare, ArrowRight } from 'lucide-react';
-import { useCategories } from '@/components/common/CategoriesProvider';
+import { useNotificationClient } from '@/components/common/NotificationClientProvider';
 import { notificationService } from '@/lib/api/notifications';
+import { apiClient } from '@/lib/api/client';
 import type { NotificationItem } from '@/lib/api/types';
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 
 export default function NotificationsPage() {
-  const { getCategory } = useCategories();
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+  const router = useRouter();
+  const { refreshUnreadCount } = useNotificationClient();
+  const [supabase] = React.useState(() => createSupabaseClient());
 
-  const refreshData = React.useCallback(() => {
-    setNotifications(notificationService.getNotifications());
-  }, []);
+  // Fetch current user using shared query key
+  const { data: currentUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: apiClient.getCurrentUser,
+  });
+  const currentUserId = currentUser?.id ?? null;
 
+  // Fetch notifications using dynamic query cache
+  const { data: notifications = [], refetch: refetchNotifications, isLoading } = useQuery({
+    queryKey: ['notifications', currentUserId],
+    queryFn: async () => {
+      if (!currentUserId) return [];
+      return notificationService.getNotifications(supabase, currentUserId);
+    },
+    enabled: !!currentUserId,
+  });
+
+  // Automatically mark unread alerts as read when landing on page
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      refreshData();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [refreshData]);
+    if (!currentUserId || notifications.length === 0) {
+      return;
+    }
 
-  const handleMarkAllRead = () => {
-    notificationService.markAllNotificationsAsRead();
-    refreshData();
-    // Dispatch refresh event
+    const unreadItems = notifications.filter((item) => item.status === 'unread');
+    if (unreadItems.length > 0) {
+      void (async () => {
+        await notificationService.markAllNotificationsAsRead(supabase, currentUserId);
+        void refetchNotifications();
+        void refreshUnreadCount();
+      })();
+    }
+  }, [currentUserId, notifications, refetchNotifications, refreshUnreadCount, supabase]);
+
+  // Realtime active subscription listener
+  React.useEffect(() => {
+    if (!currentUserId) {
+      return;
+    }
+
+    return notificationService.subscribeToNotifications(supabase, currentUserId, () => {
+      void (async () => {
+        await refetchNotifications();
+        if (document.visibilityState === 'visible') {
+          await notificationService.markAllNotificationsAsRead(supabase, currentUserId);
+          await refetchNotifications();
+          await refreshUnreadCount();
+        }
+      })();
+    });
+  }, [currentUserId, refetchNotifications, refreshUnreadCount, supabase]);
+
+  const handleMarkAllRead = React.useCallback(async () => {
+    if (!currentUserId) {
+      return;
+    }
+
+    await notificationService.markAllNotificationsAsRead(supabase, currentUserId);
+    await refetchNotifications();
+    await refreshUnreadCount();
     window.dispatchEvent(new CustomEvent('post-created', { detail: 'All notifications marked as read!' }));
-  };
+  }, [currentUserId, refetchNotifications, refreshUnreadCount, supabase]);
 
-  const handleDelete = (id: string) => {
-    notificationService.deleteNotification(id);
-    refreshData();
-  };
+  const handleDelete = React.useCallback(async (id: string) => {
+    await notificationService.deleteNotification(supabase, id);
+    await refetchNotifications();
+    await refreshUnreadCount();
+  }, [refetchNotifications, refreshUnreadCount, supabase]);
+
+  const handleOpenNotification = React.useCallback(async (notification: NotificationItem) => {
+    if (notification.status === 'unread') {
+      await notificationService.markNotificationRead(supabase, notification.id);
+      await refetchNotifications();
+      await refreshUnreadCount();
+    }
+
+    if (notification.actionUrl) {
+      router.push(notification.actionUrl);
+    }
+  }, [refetchNotifications, refreshUnreadCount, router, supabase]);
 
   const getIconForType = (type: NotificationItem['type']) => {
     switch (type) {
@@ -48,6 +110,16 @@ export default function NotificationsPage() {
       default:
         return <Bell size={16} className="text-[#A3A3A3]" />;
     }
+  };
+
+  const getAccentColor = (notification: NotificationItem) => {
+    if (notification.type === 'listing_claimed') return '#E8A838';
+    if (notification.type === 'message_received') return '#7DD3FC';
+    if (notification.type === 'request_fulfilled') return '#A8D97F';
+    if (notification.type === 'match_found') return '#A8D97F';
+    if (notification.category === 'matching') return '#A8D97F';
+    if (notification.category === 'transactional') return '#E8A838';
+    return '#A3A3A3';
   };
 
   return (
@@ -76,21 +148,33 @@ export default function NotificationsPage() {
           </span>
         </div>
 
-        {notifications.length > 0 ? (
+        {isLoading ? (
+          <div className="rounded-3xl border border-white/6 bg-[#141414] p-6 text-center text-sm text-[#A3A3A3]">
+            Loading notifications...
+          </div>
+        ) : notifications.length > 0 ? (
           <div className="space-y-3">
             {notifications.map((notif, idx) => {
-              const catColor = notif.category ? getCategory(notif.category).color : '#A3A3A3';
+              const catColor = getAccentColor(notif);
               const isUnread = notif.status === 'unread';
 
               return (
                 <div
                   key={notif.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => void handleOpenNotification(notif)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      void handleOpenNotification(notif);
+                    }
+                  }}
                   style={{ 
-                    borderLeftColor: isUnread ? catColor : 'rgba(255,255,255,0.06)',
                     animationDelay: `${idx * 50}ms`,
                     animationFillMode: 'both'
                   }}
-                  className={`group relative flex items-start gap-4 rounded-xl border border-white/6 p-4 border-l-4 transition-colors animate-fade-in-up ${
+                  className={`group relative flex w-full items-start gap-4 rounded-xl border border-white/6 p-4 text-left transition-colors animate-fade-in-up ${
                     isUnread ? 'bg-[#141414]' : 'bg-[#0E0E0E]/40 opacity-70'
                   }`}
                 >
@@ -119,7 +203,11 @@ export default function NotificationsPage() {
 
                   {/* Action delete floating button */}
                   <button
-                    onClick={() => handleDelete(notif.id)}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleDelete(notif.id);
+                    }}
                     className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition rounded p-1.5 text-[#525252] hover:text-[#E05656] hover:bg-[#E05656]/10"
                     aria-label="Delete notification"
                   >

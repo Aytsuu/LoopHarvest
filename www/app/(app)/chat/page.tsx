@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   MessageSquare,
@@ -30,9 +30,11 @@ import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [supabase] = React.useState(() => createSupabaseClient());
 
+  const queryThreadId = searchParams.get('threadId');
   const queryListingId = searchParams.get('listingId');
   const queryRecipientId = searchParams.get('recipientId');
   const queryRecipientName = searchParams.get('recipientName');
@@ -306,6 +308,27 @@ export default function ChatPage() {
       return;
     }
 
+    if (queryThreadId && threadsFetched && !bootstrapThreadRef.current) {
+      bootstrapThreadRef.current = true;
+      const existingThread = threads.find((thread) => thread.id === queryThreadId);
+
+      if (existingThread) {
+        const timeoutId = window.setTimeout(() => {
+          setActiveThreadId(existingThread.id);
+          setShowSidebarOnMobile(false);
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
+      }
+
+      if (threads.length > 0) {
+        const timeoutId = window.setTimeout(() => {
+          setActiveThreadId(threads[0].id);
+          setShowSidebarOnMobile(false);
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
+      }
+    }
+
     if (queryListingId && queryRecipientId && threadsFetched && !bootstrapThreadRef.current) {
       bootstrapThreadRef.current = true;
       const existingThread = threads.find((thread) =>
@@ -328,13 +351,13 @@ export default function ChatPage() {
       return;
     }
 
-    if (!queryListingId && !activeThreadId && threads.length > 0) {
+    if (!queryListingId && !queryThreadId && !activeThreadId && threads.length > 0) {
       const timeoutId = window.setTimeout(() => {
         setActiveThreadId(threads[0].id);
       }, 0);
       return () => window.clearTimeout(timeoutId);
     }
-  }, [activeThreadId, currentUser?.id, openThreadMutation, queryListingId, queryRecipientId, threads, threadsFetched]);
+  }, [activeThreadId, currentUser?.id, openThreadMutation, queryListingId, queryRecipientId, queryThreadId, threads, threadsFetched]);
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -695,15 +718,25 @@ export default function ChatPage() {
 
               {activeListing ? (
                 <div className="bg-[#141414] border-b border-white/6 p-3 px-4 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-fade-in relative z-10">
-                  <div className="flex items-center gap-3">
+                  <div 
+                    onClick={() => router.push(`/listings/${activeListing.id}`)}
+                    className="flex items-center gap-3 cursor-pointer group/listing-header hover:opacity-90 transition-all duration-200"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        router.push(`/listings/${activeListing.id}`);
+                      }
+                    }}
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={activeListing.photo_url ?? 'https://images.unsplash.com/photo-1557844352-761f2565b576?q=80&w=300&auto=format&fit=crop'}
                       alt={activeListing.title}
-                      className="h-11 w-11 rounded-lg object-cover border border-white/10"
+                      className="h-11 w-11 rounded-lg object-cover border border-white/10 group-hover/listing-header:border-[#A8D97F]/40 transition-all duration-200"
                     />
                     <div className="min-w-0">
-                      <span className="block text-xs font-bold text-[#FFFFFF] truncate">{activeListing.title}</span>
+                      <span className="block text-xs font-bold text-[#FFFFFF] truncate group-hover/listing-header:text-[#A8D97F] transition-colors duration-200">{activeListing.title}</span>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-[#A8D97F] bg-[#2A4A10]/55 px-1.5 py-0.5 rounded border border-[#A8D97F]/10">
                           <Scale size={9} />

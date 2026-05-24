@@ -117,9 +117,40 @@ export interface NotificationItem {
   title: string;
   body: string;
   time: string;
-  type: "match_found" | "listing_claimed" | "pickup_confirmed" | "request_matched" | "review_received";
+  type: string;
   status: "unread" | "read";
-  category?: CategorySlug;
+  actionUrl?: string | null;
+  category?: string | null;
+  priority?: string | null;
+  createdAt?: string;
+  categorySlug?: CategorySlug;
+}
+
+export interface NotificationSettingsFormData {
+  alertRadius: number;
+  emailDigest: boolean;
+  pushAlerts: boolean;
+  ecoReports: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  emailDigestFrequency: 'realtime' | 'daily' | 'weekly' | 'never';
+  typePreferences: Record<string, { in_app: boolean; push: boolean; email: boolean }>;
+}
+
+export interface ReleaseNotificationItem {
+  id: string;
+  version: string;
+  type: 'minor' | 'patch' | 'major' | 'breaking';
+  title: string;
+  body: string;
+  changelog_url: string | null;
+  action_required: boolean;
+  action_label: string | null;
+  action_type: 'reload' | 'navigate' | 'accept_terms' | 'none';
+  action_url: string | null;
+  published_at: string;
+  expires_at: string | null;
 }
 
 export interface UserStats {

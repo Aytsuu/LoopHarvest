@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import { buildRequestUrl } from "@/lib/http/request-origin";
+
 const PUBLIC_PATH_PREFIXES = ["/login", "/signup", "/auth"];
 
 export async function proxy(request: NextRequest) {
@@ -48,9 +50,7 @@ export async function proxy(request: NextRequest) {
   // Route /home only (Answers question 1 of implementation plan)
   // Consolidate /dashboard by redirecting it to /home
   if (pathname.startsWith("/dashboard")) {
-    const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = "/home";
-    homeUrl.search = "";
+    const homeUrl = buildRequestUrl(request, "/home");
     return NextResponse.redirect(homeUrl);
   }
 
@@ -59,16 +59,13 @@ export async function proxy(request: NextRequest) {
   );
 
   if (!isAuthenticated && !isPublicPath) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
+    const loginUrl = buildRequestUrl(request, "/login");
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   if (isAuthenticated && isPublicPath) {
-    const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = "/home";
-    homeUrl.search = "";
+    const homeUrl = buildRequestUrl(request, "/home");
     return NextResponse.redirect(homeUrl);
   }
 
