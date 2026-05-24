@@ -135,7 +135,7 @@ class SupabaseProfileService:
 
         rows = await self._rest.select(
             "users",
-            columns="id,email,display_name,avatar_url,city,country",
+            columns="id,email,role,display_name,avatar_url,city,country,created_at",
             filters={"id": f"eq.{current_user.id}"},
         )
         if not rows:
@@ -245,10 +245,15 @@ class SupabaseProfileService:
         return current_user.model_copy(
             update={
                 "email": user_row.get("email") or current_user.email,
+                "role": user_row.get("role") or current_user.role,
                 "display_name": user_row.get("display_name") or current_user.display_name,
                 "avatar_url": user_row.get("avatar_url") or current_user.avatar_url,
                 "city": user_row.get("city") or current_user.city,
+                "state_region": user_row.get("state_region") or current_user.state_region,
+                "postal_code": user_row.get("postal_code") or current_user.postal_code,
                 "country": user_row.get("country") or current_user.country,
+                "bio": user_row.get("bio") or current_user.bio,
+                "created_at": user_row.get("created_at") or current_user.created_at,
             }
         )
 

@@ -40,6 +40,19 @@ async def test_cors_allows_local_frontend_origin(client):
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
+async def test_cors_allows_private_lan_frontend_origin(client):
+    response = await client.options(
+        "/api/v1/categories",
+        headers={
+            "Origin": "http://192.168.1.3:3000",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://192.168.1.3:3000"
+
+
 async def test_list_categories_uses_six_row_taxonomy(client):
     response = await client.get("/api/v1/categories")
 
