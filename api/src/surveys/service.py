@@ -77,12 +77,6 @@ class SupabaseUserSurveyRepository(UserSurveyRepository):
         else:
             row = await self._rest.insert("user_surveys", row_payload)
 
-        await self._rest.update(
-            "users",
-            payload={"role": _map_role_for_user_row(payload.role)},
-            filters={"id": f"eq.{user_id}"},
-        )
-
         return self._map_row(row)
 
     def _map_row(self, row: Mapping[str, object]) -> UserSurvey:
@@ -117,12 +111,6 @@ def _build_user_survey_repository(settings: Settings) -> UserSurveyRepository:
     if settings.supabase_project_url and settings.supabase_service_role_key:
         return SupabaseUserSurveyRepository(settings)
     return InMemoryUserSurveyRepository()
-
-
-def _map_role_for_user_row(role: str) -> str:
-    if role == "observer":
-        return "both"
-    return role
 
 
 survey_service = UserSurveyService(_build_user_survey_repository(get_settings()))

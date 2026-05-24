@@ -27,3 +27,19 @@ async def put_my_survey(
         data=await survey_service.save_current_user_survey(current_user, payload),
         message="Survey saved.",
     )
+
+
+@router.post(
+    "/me",
+    response_model=ApiEnvelope[UserSurvey],
+    status_code=status.HTTP_200_OK,
+    summary="Create current user survey",
+)
+async def post_my_survey(
+    payload: UserSurveyPayload,
+    current_user: CurrentUser,
+) -> ApiEnvelope[UserSurvey]:
+    return ApiEnvelope(
+        data=await survey_service.save_current_user_survey(current_user, payload),
+        message="Survey saved.",
+    )

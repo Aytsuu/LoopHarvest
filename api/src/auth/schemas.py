@@ -23,7 +23,7 @@ class AuthenticatedUser(ApiModel):
 class AuthenticatedUserUpdate(ApiModel):
     email: EmailStr
     display_name: str = Field(min_length=1, max_length=120)
-    avatar_url: str = Field(min_length=1, max_length=2048)
+    avatar_url: str | None = Field(default=None, max_length=2048)
     city: str | None = Field(default=None, max_length=120)
     state_region: str | None = Field(default=None, max_length=120)
     postal_code: str | None = Field(default=None, max_length=32)
