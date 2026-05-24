@@ -6,6 +6,7 @@ import { ChevronRight, ChevronLeft, Send, Scale, Info } from 'lucide-react';
 import { useCategories } from '@/components/common/CategoriesProvider';
 import { apiClient } from '@/lib/api/client';
 import type { CategorySlug } from '@/lib/categories';
+import CategoryIcon from '@/components/common/CategoryIcon';
 
 export default function PostRequestPage() {
   const { categories } = useCategories();
@@ -181,7 +182,9 @@ export default function PostRequestPage() {
                           : 'bg-[#141414] border-white/6 text-[#FFFFFF] hover:border-white/12'
                       }`}
                     >
-                      <span className="text-lg">{cat.emoji}</span>
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/5 shadow-inner">
+                        <CategoryIcon slug={cat.slug} size={11} style={{ color: cat.color }} />
+                      </span>
                       <span className="truncate">{cat.label}</span>
                     </button>
                   ))}

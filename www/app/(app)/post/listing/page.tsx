@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api/client';
 import type { CategorySlug } from '@/lib/categories';
 import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 import { getListingPhotosBucket } from '@/lib/supabase/storage';
+import CategoryIcon from '@/components/common/CategoryIcon';
 
 export default function PostListingPage() {
   const { categories, getCategory } = useCategories();
@@ -258,7 +259,9 @@ export default function PostListingPage() {
                           : 'bg-[#141414] border-white/6 text-[#FFFFFF] hover:border-white/12'
                       }`}
                     >
-                      <span className="text-lg">{cat.emoji}</span>
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/5 shadow-inner">
+                        <CategoryIcon slug={cat.slug} size={11} style={{ color: cat.color }} />
+                      </span>
                       <span className="truncate">{cat.label}</span>
                     </button>
                   ))}
@@ -555,8 +558,9 @@ export default function PostListingPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={selectedPhoto} alt="Review Post" className="h-full w-full object-cover" />
                 <div className="absolute left-3 top-3">
-                  <span className="rounded-full bg-[#141414] px-3 py-1 text-xs font-bold text-[#FFFFFF] border border-white/10">
-                    {activeCategory.emoji} {activeCategory.label}
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#141414] px-3 py-1 text-xs font-bold text-[#FFFFFF] border border-white/10">
+                    <CategoryIcon slug={category} size={11} style={{ color: activeCategory.color }} />
+                    <span>{activeCategory.label}</span>
                   </span>
                 </div>
               </div>
