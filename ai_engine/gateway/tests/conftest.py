@@ -15,6 +15,8 @@ def settings() -> Settings:
         app_name="LoopHarvest AI Gateway",
         api_key="test-secret",
         default_model="qwen2.5:1.5b",
+        fallback_model="gemma3:4b",
+        vision_model="qwen2.5vl:3b",
         ollama_url="http://ollama:11434",
         request_timeout_seconds=30.0,
     )
@@ -23,6 +25,6 @@ def settings() -> Settings:
 @pytest.fixture
 async def client(settings: Settings) -> AsyncClient:
     app = create_app(settings)
-    transport = ASGITransport(app=app)
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://testserver") as async_client:
         yield async_client
