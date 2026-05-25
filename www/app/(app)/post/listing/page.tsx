@@ -181,7 +181,7 @@ export default function PostListingPage() {
             if (step > 1) handlePrev();
             else router.push('/home');
           }}
-          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
+          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition cursor-pointer"
         >
           Back
         </button>
@@ -253,7 +253,7 @@ export default function PostListingPage() {
                         setVerificationState('idle');
                         setUploadError(null);
                       }}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
+                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all cursor-pointer ${
                         category === cat.slug
                           ? 'bg-[#2A4A10] border-[#A8D97F] text-[#A8D97F]'
                           : 'bg-[#141414] border-white/6 text-[#FFFFFF] hover:border-white/12'
@@ -409,7 +409,7 @@ export default function PostListingPage() {
                         type="button"
                         onClick={() => photoInputRef.current?.click()}
                         disabled={verificationState === 'uploading'}
-                        className="mt-2 w-full flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#2A4A10]/80 border border-[#A8D97F]/20 text-xs font-bold text-[#A8D97F] hover:bg-[#2A4A10] transition-colors disabled:opacity-50"
+                        className="mt-2 w-full flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#2A4A10]/80 border border-[#A8D97F]/20 text-xs font-bold text-[#A8D97F] hover:bg-[#2A4A10] transition-colors disabled:opacity-50 cursor-pointer"
                       >
                         {verificationState === 'uploading' ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -461,7 +461,7 @@ export default function PostListingPage() {
                           setVerificationState('idle');
                           setUploadError(null);
                         }}
-                        className="rounded-lg border border-white/6 bg-white/4 hover:bg-white/8 px-3 py-1.5 text-[10px] font-bold text-[#FFFFFF] transition-colors shrink-0"
+                        className="rounded-lg border border-white/6 bg-white/4 hover:bg-white/8 px-3 py-1.5 text-[10px] font-bold text-[#FFFFFF] transition-colors shrink-0 cursor-pointer"
                       >
                         Replace Photo
                       </button>
@@ -600,7 +600,7 @@ export default function PostListingPage() {
           {step > 1 && (
             <button
               onClick={handlePrev}
-              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#1B1B1B] transition flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#1B1B1B] transition flex-1 cursor-pointer"
             >
               <ChevronLeft size={16} />
               <span>Back</span>
@@ -610,7 +610,7 @@ export default function PostListingPage() {
           {step < 4 ? (
             <button
               onClick={handleNext}
-              className="flex items-center justify-center gap-1 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 cursor-pointer"
             >
               <span>Continue</span>
               <ChevronRight size={16} />
@@ -618,7 +618,7 @@ export default function PostListingPage() {
           ) : (
             <button
               onClick={handlePublish}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg cursor-pointer"
             >
               <span>Publish Listing</span>
               <Send size={14} />

@@ -175,7 +175,7 @@ export default function Notifications({
               value={emailDigestFrequency}
               disabled={!emailDigest}
               onChange={(event) => setEmailDigestFrequency(event.target.value as NotificationsProps['emailDigestFrequency'])}
-              className="h-11 w-full rounded-xl border border-white/8 bg-[#141414] px-3 text-sm text-[#FFFFFF] disabled:opacity-50"
+              className="h-11 w-full rounded-xl border border-white/8 bg-[#141414] px-3 text-sm text-[#FFFFFF] disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-colors duration-200"
             >
               <option value="realtime">Realtime</option>
               <option value="daily">Daily</option>
@@ -260,7 +260,7 @@ export default function Notifications({
         <button
           type="submit"
           disabled={savePending}
-          className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] shadow-md transition hover:bg-[#B8E890] active:scale-95 disabled:opacity-70"
+          className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] shadow-md cursor-pointer disabled:cursor-not-allowed transition hover:bg-[#B8E890] active:scale-95 disabled:opacity-70"
         >
           <Save size={16} />
           <span>{savePending ? 'Saving...' : 'Save Notification Settings'}</span>

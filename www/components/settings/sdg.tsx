@@ -85,7 +85,7 @@ export default function SDG({
                 key={scrap.id}
                 type="button"
                 onClick={() => setScrapPrefs(prev => ({ ...prev, [key]: !isChecked }))}
-                className={`p-4 rounded-xl border text-left flex items-start justify-between transition-colors ${
+                className={`cursor-pointer p-4 rounded-xl border text-left flex items-start justify-between transition-colors ${
                   isChecked 
                     ? 'bg-[#2A4A10]/20 border-[#A8D97F]/30 text-[#A8D97F]' 
                     : 'bg-white/4 border-white/6 hover:bg-white/6 text-[#A3A3A3]'
@@ -123,7 +123,7 @@ export default function SDG({
       <div className="border-t border-white/6 pt-4 flex justify-end">
         <button
           type="submit"
-          className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
+          className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] cursor-pointer transition hover:bg-[#B8E890] active:scale-95 shadow-md"
         >
           <Save size={16} />
           <span>Save Environmental Goals</span>

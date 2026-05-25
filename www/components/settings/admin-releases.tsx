@@ -349,7 +349,7 @@ export default function AdminReleases() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-xs font-bold text-[#1A3A05] transition-all duration-200 hover:bg-[#B8E890] active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-md"
+                className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-xs font-bold text-[#1A3A05] transition-all duration-200 hover:bg-[#B8E890] active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none shadow-md"
               >
                 <Plus size={14} />
                 <span>{isSaving ? 'Publishing...' : 'Publish Release'}</span>
@@ -403,7 +403,7 @@ export default function AdminReleases() {
                           href={release.changelog_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center gap-1 text-[9px] font-black text-[#A8D97F] hover:underline uppercase tracking-wider ml-auto"
+                          className="cursor-pointer flex items-center gap-1 text-[9px] font-black text-[#A8D97F] hover:underline uppercase tracking-wider ml-auto"
                         >
                           <Link2 size={10} />
                           <span>Changelog</span>

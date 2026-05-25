@@ -169,7 +169,7 @@ export default function UserProfileDetailPage() {
         <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
           <button
             onClick={() => router.back()}
-            className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
+            className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition cursor-pointer"
           >
             Back
           </button>
@@ -182,7 +182,7 @@ export default function UserProfileDetailPage() {
           <p className="text-xs text-[#A3A3A3] mt-2 max-w-xs">{error ?? 'This circular node has not been registered yet.'}</p>
           <button 
             onClick={() => router.push('/home')}
-            className="mt-6 rounded-lg bg-[#2A4A10] px-4 py-2 text-xs font-bold text-[#A8D97F]"
+            className="mt-6 rounded-lg bg-[#2A4A10] px-4 py-2 text-xs font-bold text-[#A8D97F] cursor-pointer"
           >
             Back to Feed
           </button>
@@ -196,7 +196,7 @@ export default function UserProfileDetailPage() {
       <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
         <button
           onClick={() => router.back()}
-          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
+          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition cursor-pointer"
         >
           Back
         </button>
@@ -240,7 +240,7 @@ export default function UserProfileDetailPage() {
 
               <button
                 onClick={() => alert(`Direct messaging to ${profile.name} will be connected in the next platform release.`)}
-                className="rounded-xl bg-[#A8D97F] px-5 py-2.5 text-xs font-black text-[#1A3A05] hover:brightness-105 transition flex items-center justify-center gap-2 self-center md:self-auto"
+                className="rounded-xl bg-[#A8D97F] px-5 py-2.5 text-xs font-black text-[#1A3A05] hover:brightness-105 transition flex items-center justify-center gap-2 self-center md:self-auto cursor-pointer"
               >
                 <MessageSquare size={14} />
                 <span>Message Node</span>

@@ -666,7 +666,7 @@ export default function ProfilePage() {
         <button
           key={sec.id}
           onClick={() => handleSectionSelect(sec.id)}
-          className={`group flex w-full items-start gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 border border-transparent ${
+          className={`group flex w-full items-start gap-3.5 rounded-xl px-3.5 py-3 text-left transition-all duration-200 border border-transparent cursor-pointer ${
             isActive
               ? 'bg-[#2A4A10] text-[#A8D97F] border-[#A8D97F]/10'
               : 'hover:bg-white/4 text-[#A3A3A3] hover:text-[#FFFFFF]'
@@ -921,7 +921,7 @@ export default function ProfilePage() {
           <div className="block md:hidden w-full h-full overflow-y-auto bg-[#0A0A0A] p-4 pb-28 space-y-5">
             <button 
               onClick={() => setMobileActiveSection(null)}
-              className="flex items-center gap-2 text-xs font-black text-[#A8D97F] hover:underline mb-2 uppercase tracking-wider"
+              className="flex items-center gap-2 text-xs font-black text-[#A8D97F] hover:underline mb-2 uppercase tracking-wider cursor-pointer"
             >
               <ArrowLeft size={14} strokeWidth={2.5} />
               <span>Back to Categories</span>

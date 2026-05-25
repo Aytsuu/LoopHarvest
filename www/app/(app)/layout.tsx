@@ -271,11 +271,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Post Bottom Sheet (M3 Modal overlay) */}
       {isPostSheetOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm md:items-center animate-fade-in"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm md:items-center animate-fade-in cursor-pointer"
           onClick={() => setIsPostSheetOpen(false)}
         >
           <div
-            className="relative w-full max-w-md rounded-t-[2rem] bg-[#1B1B1B] p-6 pb-12 text-[#FFFFFF] shadow-[0_-8px_32px_rgba(0,0,0,0.5)] border-t border-white/10 md:rounded-[2rem] md:pb-6 md:border animate-scale-in"
+            className="relative w-full max-w-md rounded-t-[2rem] bg-[#1B1B1B] p-6 pb-12 text-[#FFFFFF] shadow-[0_-8px_32px_rgba(0,0,0,0.5)] border-t border-white/10 md:rounded-[2rem] md:pb-6 md:border animate-scale-in cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drag Handle */}
@@ -287,7 +287,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </h3>
               <button
                 onClick={() => setIsPostSheetOpen(false)}
-                className="rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 transition"
+                className="rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 transition cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -296,7 +296,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="space-y-3">
               <button
                 onClick={() => navigateTo('/post/listing')}
-                className="flex w-full items-center gap-4 rounded-2xl bg-[#A8D97F] p-4 text-left font-bold text-[#1A3A05] transition hover:brightness-105 active:scale-[0.99]"
+                className="flex w-full items-center gap-4 rounded-2xl bg-[#A8D97F] p-4 text-left font-bold text-[#1A3A05] transition hover:brightness-105 active:scale-[0.99] cursor-pointer"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1A3A05]/10">
                   <Apple size={22} />
@@ -309,7 +309,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
               <button
                 onClick={() => navigateTo('/post/request')}
-                className="flex w-full items-center gap-4 rounded-2xl bg-[#2A4A10] p-4 text-left font-bold text-[#C4F09A] transition hover:brightness-110 active:scale-[0.99]"
+                className="flex w-full items-center gap-4 rounded-2xl bg-[#2A4A10] p-4 text-left font-bold text-[#C4F09A] transition hover:brightness-110 active:scale-[0.99] cursor-pointer"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C4F09A]/10">
                   <MessageSquare size={22} />
@@ -327,11 +327,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Sign Out Confirmation Modal (Premium Glassmorphic Dialog) */}
       {isSignOutConfirmOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in cursor-pointer"
           onClick={() => setIsSignOutConfirmOpen(false)}
         >
           <div
-            className="relative w-full max-w-sm rounded-[2rem] bg-[#1B1B1B] p-6 text-[#FFFFFF] shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-white/10 animate-scale-in"
+            className="relative w-full max-w-sm rounded-[2rem] bg-[#1B1B1B] p-6 text-[#FFFFFF] shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-white/10 animate-scale-in cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Warning Icon Badge */}

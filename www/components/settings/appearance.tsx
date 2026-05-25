@@ -47,7 +47,7 @@ export default function Appearance({
               type="button"
               disabled={th.name === 'Light Mode'}
               onClick={() => th.name !== 'Light Mode' && setSelectedTheme(th.name)}
-              className={`p-4 rounded-xl border text-left transition-all relative ${
+              className={`p-4 rounded-xl border text-left transition-all relative cursor-pointer disabled:cursor-not-allowed ${
                 selectedTheme === th.name && th.name !== 'Light Mode'
                   ? 'bg-[#2A4A10]/20 border-[#A8D97F] ring-2 ring-[#A8D97F]/20'
                   : 'bg-white/4 border-white/6 hover:bg-white/8'
@@ -74,7 +74,7 @@ export default function Appearance({
               key={den}
               type="button"
               onClick={() => setSelectedDensity(den)}
-              className={`flex-1 text-center py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 text-center py-2 text-xs font-bold rounded-lg cursor-pointer transition-all ${
                 selectedDensity === den
                   ? 'bg-[#A8D97F] text-[#1A3A05]'
                   : 'text-[#A3A3A3] hover:text-[#FFFFFF] hover:bg-white/2'
@@ -132,7 +132,7 @@ export default function Appearance({
       <div className="border-t border-white/6 pt-4 flex justify-end">
         <button
           type="submit"
-          className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
+          className="flex items-center gap-2 rounded-xl bg-[#A8D97F] px-5 py-2.5 text-sm font-bold text-[#1A3A05] cursor-pointer transition hover:bg-[#B8E890] active:scale-95 shadow-md"
         >
           <Save size={16} />
           <span>Apply Appearance</span>

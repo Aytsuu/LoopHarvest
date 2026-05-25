@@ -646,7 +646,7 @@ export default function ChatPage() {
                   <button
                     key={thread.id}
                     onClick={() => handleThreadSelect(thread.id)}
-                    className={`w-full flex items-start gap-3 p-3 rounded-xl transition-all text-left relative ${
+                    className={`w-full flex items-start gap-3 p-3 rounded-xl transition-all text-left relative cursor-pointer ${
                       isActive
                         ? 'bg-[#2A4A10]/30 border border-[#A8D97F]/20 text-white'
                         : 'border border-transparent hover:bg-white/4 text-[#A3A3A3] hover:text-[#FFFFFF]'
@@ -695,7 +695,7 @@ export default function ChatPage() {
               <div className="p-4 border-b border-white/6 bg-[#141414]/90 flex items-center gap-3">
                 <button
                   onClick={() => setShowSidebarOnMobile(true)}
-                  className="md:hidden rounded-full p-1 border border-white/10 hover:bg-white/8 transition"
+                  className="md:hidden rounded-full p-1 border border-white/10 hover:bg-white/8 transition cursor-pointer"
                 >
                   <ChevronLeft size={18} />
                 </button>

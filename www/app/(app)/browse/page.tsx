@@ -214,7 +214,7 @@ export default function BrowseMapPage() {
             {!isLargeScreen && (
               <button
                 onClick={() => setShowMapOnMobile(false)}
-                className={`flex h-8 items-center justify-center rounded-md px-2.5 ${activeView === 'list' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
+                className={`flex h-8 items-center justify-center rounded-md px-2.5 cursor-pointer ${activeView === 'list' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
               >
                 <ListIcon size={14} />
               </button>
@@ -224,7 +224,7 @@ export default function BrowseMapPage() {
                 setMapProjection('mercator');
                 if (!isLargeScreen) setShowMapOnMobile(true);
               }}
-              className={`flex h-8 items-center justify-center rounded-md px-2.5 ${activeView === 'flat' || (isLargeScreen && mapProjection === 'mercator') ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
+              className={`flex h-8 items-center justify-center rounded-md px-2.5 cursor-pointer ${activeView === 'flat' || (isLargeScreen && mapProjection === 'mercator') ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
             >
               <MapIcon size={14} />
             </button>
@@ -233,7 +233,7 @@ export default function BrowseMapPage() {
                 setMapProjection('globe');
                 if (!isLargeScreen) setShowMapOnMobile(true);
               }}
-              className={`flex h-8 items-center justify-center rounded-md px-2.5 ${activeView === 'globe' || (isLargeScreen && mapProjection === 'globe') ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
+              className={`flex h-8 items-center justify-center rounded-md px-2.5 cursor-pointer ${activeView === 'globe' || (isLargeScreen && mapProjection === 'globe') ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
             >
               <GlobeIcon size={14} />
             </button>
@@ -243,13 +243,13 @@ export default function BrowseMapPage() {
         <div className="flex rounded-md border border-white/6 bg-[#141414] p-0.5">
           <button
             onClick={() => setActiveTab('listings')}
-            className={`flex-1 rounded-sm py-1.5 text-xs font-bold ${activeTab === 'listings' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
+            className={`flex-1 rounded-sm py-1.5 text-xs font-bold cursor-pointer ${activeTab === 'listings' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
           >
             Food Waste
           </button>
           <button
             onClick={() => setActiveTab('requests')}
-            className={`flex-1 rounded-sm py-1.5 text-xs font-bold ${activeTab === 'requests' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
+            className={`flex-1 rounded-sm py-1.5 text-xs font-bold cursor-pointer ${activeTab === 'requests' ? 'bg-[#2A4A10] text-[#A8D97F]' : 'text-[#A3A3A3]'}`}
           >
             Appeals
           </button>
@@ -259,7 +259,7 @@ export default function BrowseMapPage() {
           <div className={`pointer-events-none absolute bottom-0 left-0 top-0 z-10 flex w-12 items-center pl-1 bg-gradient-to-r from-[#0E0E0E] to-transparent ${showLeftArrow ? 'opacity-100' : 'opacity-0'}`}>
             <button
               onClick={() => scrollCategories('left')}
-              className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3]"
+              className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3] cursor-pointer"
               aria-label="Previous Categories"
             >
               <ChevronLeft size={14} />
@@ -269,7 +269,7 @@ export default function BrowseMapPage() {
           <div ref={categoriesRef} onScroll={checkScroll} className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-wider ${selectedCategory === null ? 'border-[#A8D97F] bg-[rgba(168,217,127,0.1)] text-[#A8D97F]' : 'border-white/8 bg-[#141414] text-[#A3A3A3]'}`}
+              className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer ${selectedCategory === null ? 'border-[#A8D97F] bg-[rgba(168,217,127,0.1)] text-[#A8D97F]' : 'border-white/8 bg-[#141414] text-[#A3A3A3]'}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/globe.svg" alt="" className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
@@ -288,7 +288,7 @@ export default function BrowseMapPage() {
           <div className={`pointer-events-none absolute bottom-0 right-0 top-0 z-10 flex w-12 items-center justify-end pr-1 bg-gradient-to-l from-[#0E0E0E] to-transparent ${showRightArrow ? 'opacity-100' : 'opacity-0'}`}>
             <button
               onClick={() => scrollCategories('right')}
-              className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3]"
+              className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3] cursor-pointer"
               aria-label="Next Categories"
             >
               <ChevronRight size={14} />
@@ -364,7 +364,7 @@ export default function BrowseMapPage() {
           {showMapOnMobile && (
             <button
               onClick={() => setShowMapOnMobile(false)}
-              className="absolute bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#A8D97F]/30 bg-[#0E0E0E]/90 px-5 py-3 text-xs font-black uppercase tracking-wider text-[#A8D97F] backdrop-blur-md md:hidden"
+              className="absolute bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#A8D97F]/30 bg-[#0E0E0E]/90 px-5 py-3 text-xs font-black uppercase tracking-wider text-[#A8D97F] backdrop-blur-md md:hidden cursor-pointer"
             >
               <ListIcon size={14} strokeWidth={2.5} />
               <span>Back to List</span>

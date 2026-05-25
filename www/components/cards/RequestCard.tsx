@@ -68,7 +68,7 @@ export default function RequestCard({ request, onFulfill, onClick }: RequestCard
                 e.stopPropagation();
                 onFulfill(request.id);
               }}
-              className="rounded-lg bg-[#A8D97F] px-3 py-1.5 text-xs font-bold text-[#1A3A05] transition hover:brightness-105 active:scale-[0.98]"
+              className="rounded-lg bg-[#A8D97F] px-3 py-1.5 text-xs font-bold text-[#1A3A05] transition hover:brightness-105 active:scale-[0.98] cursor-pointer"
             >
               Fulfill
             </button>

@@ -523,17 +523,17 @@ export default function Globe({
       {/* Dynamic Glassmorphic Action Modal */}
       {selectedPin && (
         <div 
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" 
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 cursor-pointer" 
           onClick={() => { setSelectedPin(null); onPinSelect?.(null); }}
         >
           <div 
-            className="relative w-full max-w-sm rounded-3xl bg-[#0E0E0E]/95 border border-white/10 p-6 shadow-[0_32px_64px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-200" 
+            className="relative w-full max-w-sm rounded-3xl bg-[#0E0E0E]/95 border border-white/10 p-6 shadow-[0_32px_64px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-200 cursor-default" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close Trigger */}
             <button 
               onClick={() => { setSelectedPin(null); onPinSelect?.(null); }}
-              className="absolute top-4 right-4 rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 hover:text-[#FFFFFF] transition"
+              className="absolute top-4 right-4 rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 hover:text-[#FFFFFF] transition cursor-pointer"
             >
               <X size={20} />
             </button>
@@ -626,7 +626,7 @@ export default function Globe({
                   ) : (
                     <button 
                       onClick={handleAction}
-                      className={`w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg transition duration-200 active:scale-95 ${
+                      className={`w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg transition duration-200 active:scale-95 cursor-pointer ${
                         selectedPin.type === 'listing' 
                           ? 'bg-[#A8D97F] hover:bg-[#92cc63] text-[#1A3A05]' 
                           : 'bg-[#E8A838] hover:bg-[#d89225] text-[#3D2800]'
@@ -646,7 +646,7 @@ export default function Globe({
 
                 <button 
                   onClick={() => router.push(selectedPin.type === 'listing' ? `/listings/${selectedPin.id}` : `/requests/${selectedPin.id}`)}
-                  className="w-full rounded-xl py-3.5 text-xs font-medium tracking-wider border border-white/10 hover:bg-white/5 text-[#FFFFFF] hover:text-[#A8D97F] hover:border-[#A8D97F]/30 transition duration-200 active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full rounded-xl py-3.5 text-xs font-medium tracking-wider border border-white/10 hover:bg-white/5 text-[#FFFFFF] hover:text-[#A8D97F] hover:border-[#A8D97F]/30 transition duration-200 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>View Full Details</span>
                 </button>

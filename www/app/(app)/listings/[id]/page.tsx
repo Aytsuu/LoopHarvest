@@ -124,7 +124,7 @@ export default function ListingDetailPage() {
   if (displayError && !listing) {
     return (
       <div className="flex min-h-screen flex-col bg-[#0A0A0A] px-4 py-6 text-[#FFFFFF]">
-        <button onClick={() => router.back()} className="mb-6 w-fit rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold">
+        <button onClick={() => router.back()} className="mb-6 w-fit rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold cursor-pointer">
           Back
         </button>
         <div className="rounded-2xl border border-[#E05656]/30 bg-[#7A1010]/20 p-6 text-sm text-[#FFB4AB]">{displayError}</div>
@@ -143,7 +143,7 @@ export default function ListingDetailPage() {
   return (
     <main className="min-h-screen bg-[#0A0A0A] text-[#FFFFFF]">
       <div className="mx-auto max-w-5xl px-4 py-6 pb-36 md:pb-12">
-        <button onClick={() => router.back()} className="mb-6 rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold transition hover:bg-white/4">
+        <button onClick={() => router.back()} className="mb-6 rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold transition hover:bg-white/4 cursor-pointer">
           Back
         </button>
 

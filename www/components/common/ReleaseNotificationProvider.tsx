@@ -135,7 +135,7 @@ export function ReleaseNotificationProvider({ children }: { children: React.Reac
                 <button
                   type="button"
                   onClick={() => void handleAction(activeRelease)}
-                  className="rounded-xl bg-[#A8D97F] px-4 py-2 text-xs font-bold text-[#1A3A05]"
+                  className="rounded-xl bg-[#A8D97F] px-4 py-2 text-xs font-bold text-[#1A3A05] cursor-pointer"
                 >
                   {activeRelease.action_label ?? 'Open'}
                 </button>
@@ -143,7 +143,7 @@ export function ReleaseNotificationProvider({ children }: { children: React.Reac
               <button
                 type="button"
                 onClick={() => void dismissRelease(activeRelease)}
-                className="rounded-full p-2 text-[#A3A3A3] transition hover:bg-white/5 hover:text-[#FFFFFF]"
+                className="rounded-full p-2 text-[#A3A3A3] transition hover:bg-white/5 hover:text-[#FFFFFF] cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -167,7 +167,7 @@ export function ReleaseNotificationProvider({ children }: { children: React.Reac
               <button
                 type="button"
                 onClick={() => void handleAction(activeRelease)}
-                className="rounded-xl bg-[#E05656] px-5 py-3 text-sm font-black text-white"
+                className="rounded-xl bg-[#E05656] px-5 py-3 text-sm font-black text-white cursor-pointer"
               >
                 {activeRelease.action_label ?? 'Reload now'}
               </button>

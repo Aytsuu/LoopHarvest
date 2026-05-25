@@ -30,7 +30,7 @@ export default function BottomNav({ onPostClick }: BottomNavProps) {
             <button
               key={index}
               onClick={item.action}
-              className="flex flex-col items-center justify-center gap-1 w-16"
+              className="flex flex-col items-center justify-center gap-1 w-16 cursor-pointer"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A8D97F] text-[#1A3A05] shadow-lg transition-transform hover:scale-105 active:scale-95">
                 <Plus size={24} strokeWidth={2.5} />
@@ -44,7 +44,7 @@ export default function BottomNav({ onPostClick }: BottomNavProps) {
           <button
             key={index}
             onClick={() => item.route && router.push(item.route)}
-            className={`group flex flex-col items-center justify-center gap-1 w-16 transition-colors ${
+            className={`group flex flex-col items-center justify-center gap-1 w-16 transition-colors cursor-pointer ${
               isActive ? 'text-[#A8D97F]' : 'hover:text-[#FFFFFF]'
             }`}
           >

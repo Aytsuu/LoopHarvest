@@ -87,7 +87,7 @@ export default function PostRequestPage() {
             if (step > 1) handlePrev();
             else router.push('/home');
           }}
-          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition"
+          className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold text-[#FFFFFF] hover:bg-white/8 transition cursor-pointer"
         >
           Back
         </button>
@@ -155,7 +155,7 @@ export default function PostRequestPage() {
                       key={freq}
                       type="button"
                       onClick={() => setFrequency(freq)}
-                      className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all capitalize ${
+                      className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all capitalize cursor-pointer ${
                         frequency === freq
                           ? 'bg-[#2A4A10] text-[#A8D97F]'
                           : 'text-[#A3A3A3] hover:text-[#FFFFFF]'
@@ -176,7 +176,7 @@ export default function PostRequestPage() {
                       key={cat.slug}
                       type="button"
                       onClick={() => setCategory(cat.slug)}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all ${
+                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left text-xs font-bold transition-all cursor-pointer ${
                         category === cat.slug
                           ? 'bg-[#2A4A10] border-[#A8D97F] text-[#A8D97F]'
                           : 'bg-[#141414] border-white/6 text-[#FFFFFF] hover:border-white/12'
@@ -273,7 +273,7 @@ export default function PostRequestPage() {
           {step > 1 && (
             <button
               onClick={handlePrev}
-              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#1B1B1B] transition flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-[#141414] px-4 py-3.5 text-xs font-bold text-[#FFFFFF] hover:bg-[#1B1B1B] transition flex-1 cursor-pointer"
             >
               <ChevronLeft size={16} />
               <span>Back</span>
@@ -283,7 +283,7 @@ export default function PostRequestPage() {
           {step < 2 ? (
             <button
               onClick={handleNext}
-              className="flex items-center justify-center gap-1 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1"
+              className="flex items-center justify-center gap-1 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 cursor-pointer"
             >
               <span>Continue</span>
               <ChevronRight size={16} />
@@ -291,7 +291,7 @@ export default function PostRequestPage() {
           ) : (
             <button
               onClick={handlePublish}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#A8D97F] px-4 py-3.5 text-xs font-black text-[#1A3A05] transition hover:brightness-105 active:scale-98 flex-1 shadow-lg cursor-pointer"
             >
               <span>Publish Appeal</span>
               <Send size={14} />
