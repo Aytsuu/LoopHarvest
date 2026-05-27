@@ -7,6 +7,7 @@ import type {
   ApiEnvelope,
   ApiImpactSummary,
   ApiListing,
+  ApiPersonalizedMatches,
   ApiRequest,
   ApiSurvey,
   ApiSurveyPayload,
@@ -177,6 +178,9 @@ export const apiClient = {
   },
   getImpactSummary() {
     return publicRequest<ApiImpactSummary>("/impact/summary");
+  },
+  getMyMatches() {
+    return request<ApiPersonalizedMatches>("/matches/me");
   },
   getCurrentUserSurvey() {
     return request<ApiSurvey | null>("/survey/me");
