@@ -70,6 +70,16 @@ def _extract_gemini_text(payload: dict) -> str:
     return "\n".join(text_parts).strip()
 
 
+def _log_gemini_finish_reason(payload: dict) -> None:
+    candidates = payload.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        return
+
+    finish_reason = candidates[0].get("finishReason")
+    if finish_reason:
+        logger.info("Gemini finish reason: %s", finish_reason)
+
+
 async def post_google_vision_generate_content(
     *,
     client: httpx.AsyncClient,
@@ -81,6 +91,8 @@ async def post_google_vision_generate_content(
     system_instruction: str | None,
     temperature: float | None,
     max_output_tokens: int | None,
+    response_mime_type: str | None = None,
+    response_schema: dict[str, object] | None = None,
 ) -> dict:
     request_payload: dict[str, object] = {
         "contents": [
@@ -111,6 +123,10 @@ async def post_google_vision_generate_content(
         generation_config["temperature"] = temperature
     if max_output_tokens is not None:
         generation_config["maxOutputTokens"] = max_output_tokens
+    if response_mime_type:
+        generation_config["responseMimeType"] = response_mime_type
+    if response_schema:
+        generation_config["responseSchema"] = response_schema
     if generation_config:
         request_payload["generationConfig"] = generation_config
 
@@ -150,6 +166,7 @@ async def post_google_vision_generate_content(
         _raise_transport_error(exc)
 
     payload = response.json()
+    _log_gemini_finish_reason(payload)
     return {
         "model": model,
         "content": _extract_gemini_text(payload),

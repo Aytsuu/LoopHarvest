@@ -237,6 +237,63 @@ async def test_vision_returns_text_from_gemini_candidate_parts(client) -> None:
     }
 
 
+async def test_vision_passes_structured_output_generation_config(client) -> None:
+    stub_client = StubOllamaClient(
+        post_responses=[
+            build_response(
+                "POST",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+                200,
+                {
+                    "candidates": [
+                        {
+                            "finishReason": "STOP",
+                            "content": {
+                                "parts": [
+                                    {"text": '{"category_slug":"vegetable-scraps","title":"Vegetable Scraps Batch","description":"Trimmed greens and stems."}'},
+                                ]
+                            }
+                        }
+                    ]
+                },
+            )
+        ]
+    )
+    client._transport.app.state.ollama_client = stub_client
+
+    response = await client.post(
+        "/v1/vision",
+        headers={"x-api-key": "test-secret"},
+        json={
+            "prompt": "classify image",
+            "images": [{"source": "data:image/png;base64,aGVsbG8="}],
+            "response_mime_type": "application/json",
+            "response_schema": {
+                "type": "OBJECT",
+                "properties": {
+                    "category_slug": {"type": "STRING"},
+                    "title": {"type": "STRING"},
+                    "description": {"type": "STRING"},
+                },
+                "required": ["category_slug", "title", "description"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    generation_config = stub_client.post_calls[0]["json"]["generationConfig"]
+    assert generation_config["responseMimeType"] == "application/json"
+    assert generation_config["responseSchema"] == {
+        "type": "OBJECT",
+        "properties": {
+            "category_slug": {"type": "STRING"},
+            "title": {"type": "STRING"},
+            "description": {"type": "STRING"},
+        },
+        "required": ["category_slug", "title", "description"],
+    }
+
+
 async def test_vision_returns_image_processing_error_details(client) -> None:
     with patch("src.routers.vision.to_base64", new=AsyncMock(side_effect=FileNotFoundError("missing image"))):
         response = await client.post(

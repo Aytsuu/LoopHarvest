@@ -20,6 +20,8 @@ class VisionRequest(BaseModel):
     max_tokens: Optional[int] = 1024
     temperature: Optional[float] = 0.7
     system: Optional[str] = None
+    response_mime_type: Optional[str] = None
+    response_schema: Optional[dict[str, Any]] = None
 
 class ChatRequest(BaseModel):
     messages: list

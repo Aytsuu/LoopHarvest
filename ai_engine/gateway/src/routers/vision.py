@@ -103,11 +103,19 @@ async def vision(body: VisionRequest, request: Request, _: None = Depends(verify
         system_instruction=body.system,
         temperature=body.temperature,
         max_output_tokens=body.max_tokens,
+        response_mime_type=body.response_mime_type,
+        response_schema=body.response_schema,
     )
     logger.info(
         "Vision upstream request completed model=%s total_elapsed_ms=%.1f",
         data["model"],
         (perf_counter() - route_started_at) * 1000,
+    )
+    logger.info(
+        "Vision response payload model=%s content=%r images_processed=%s",
+        data["model"],
+        data["content"],
+        len(images_for_gemini),
     )
 
     return {
