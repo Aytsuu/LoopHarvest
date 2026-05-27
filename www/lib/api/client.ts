@@ -133,6 +133,11 @@ export const apiClient = {
       method: "POST",
     });
   },
+  cancelListingClaim(listingId: string) {
+    return request<ApiListing>(`/listings/${listingId}/cancel`, {
+      method: "POST",
+    });
+  },
   getRequests() {
     return publicRequest<ApiRequest[]>("/requests");
   },
@@ -157,6 +162,16 @@ export const apiClient = {
   },
   fulfillRequest(requestId: string) {
     return request<ApiRequest>(`/requests/${requestId}/fulfill`, {
+      method: "POST",
+    });
+  },
+  closeRequest(requestId: string) {
+    return request<ApiRequest>(`/requests/${requestId}/close`, {
+      method: "POST",
+    });
+  },
+  cancelRequestFulfillment(requestId: string) {
+    return request<ApiRequest>(`/requests/${requestId}/cancel`, {
       method: "POST",
     });
   },

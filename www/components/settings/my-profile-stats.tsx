@@ -22,6 +22,7 @@ export interface MyProfileStatsProps {
   listings: Listing[];
   requests: RequestItem[];
   claimedListings: Listing[];
+  fulfilledRequests: RequestItem[];
   activeTab: 'listings' | 'requests' | 'claims';
   setActiveTab: (tab: 'listings' | 'requests' | 'claims') => void;
   displayName: string;
@@ -39,6 +40,7 @@ export default function MyProfileStats({
   listings,
   requests,
   claimedListings = [],
+  fulfilledRequests = [],
   activeTab,
   setActiveTab,
   displayName,
@@ -411,7 +413,7 @@ export default function MyProfileStats({
                   : 'border-transparent text-[#A3A3A3] hover:text-[#FFFFFF]'
               }`}
             >
-              Your Claims ({claimedListings.length})
+              Your Claims ({claimedListings.length + fulfilledRequests.length})
             </button>
           </div>
           <span className="text-[11px] text-[#A3A3A3] font-bold hidden sm:inline">Only you can view active publishes</span>
@@ -448,17 +450,20 @@ export default function MyProfileStats({
             </div>
           )
         ) : (
-          claimedListings.length > 0 ? (
+          claimedListings.length > 0 || fulfilledRequests.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {claimedListings.map((l) => (
                 <ListingCard key={l.id} listing={l} onClaim={handleClaim} />
+              ))}
+              {fulfilledRequests.map((r) => (
+                <RequestCard key={r.id} request={r} />
               ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Inbox size={40} className="mb-3 stroke-1 text-neutral-600" />
               <span className="text-xs text-[#525252]">
-                You haven&apos;t claimed any waste materials yet. Browse available scraps to start harvesting!
+                You haven&apos;t claimed listings or fulfilled requests yet. Browse active loops to start harvesting!
               </span>
             </div>
           )

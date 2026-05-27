@@ -12,6 +12,11 @@ The frontend now expects:
 - `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` for map views
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` for browser push subscription
 
+Optional server-side AI listing detection settings:
+
+- `AI_GATEWAY_BASE_URL` defaults to `http://localhost:8001`
+- `AI_GATEWAY_API_KEY` if you do not want the frontend server to reuse `MY_API_KEY` from `ai_engine/gateway/.env`
+
 Important:
 
 - `NEXT_PUBLIC_SUPABASE_URL` must be the project base URL, for example `https://your-ref.supabase.co`

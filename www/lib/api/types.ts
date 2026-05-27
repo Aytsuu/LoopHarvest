@@ -44,6 +44,7 @@ export interface ApiRequest {
   requester_id: string;
   requester_name: string | null;
   requester_avatar_url: string | null;
+  fulfilled_by: string | null;
   title: string;
   description: string | null;
   category_slug: string;
@@ -122,6 +123,8 @@ export interface Listing {
 
 export interface RequestItem {
   id: string;
+  requesterId: string;
+  fulfilledBy?: string | null;
   title: string;
   category: CategorySlug;
   minQuantity: number;
@@ -129,12 +132,13 @@ export interface RequestItem {
   unit: string;
   frequency: "one-time" | "weekly" | "monthly";
   distance: number;
+  preferredMaxDistanceKm: number;
   city: string;
   timeAgo: string;
   requesterName: string;
   requesterAvatar: string;
   description: string;
-  status: "open" | "claimed" | "completed" | "expired";
+  status: "open" | "claimed" | "completed";
 }
 
 export interface NotificationItem {

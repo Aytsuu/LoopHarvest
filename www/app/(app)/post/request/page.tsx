@@ -20,6 +20,7 @@ export default function PostRequestPage() {
   const [maxQuantity, setMaxQuantity] = React.useState<number>(20);
   const [unit, setUnit] = React.useState('kg');
   const [frequency, setFrequency] = React.useState<'one-time' | 'weekly' | 'monthly'>('weekly');
+  const [preferredMaxDistanceKm, setPreferredMaxDistanceKm] = React.useState<number>(15);
   const [description, setDescription] = React.useState('');
 
   React.useEffect(() => {
@@ -56,6 +57,10 @@ export default function PostRequestPage() {
       alert('Ensure maximum quantity is greater than or equal to minimum quantity.');
       return;
     }
+    if (preferredMaxDistanceKm <= 0) {
+      alert('Please set a preferred maximum distance greater than 0 km.');
+      return;
+    }
 
     try {
       await apiClient.createRequest({
@@ -67,7 +72,7 @@ export default function PostRequestPage() {
         description,
         city: 'San Francisco',
         country: 'United States',
-        max_distance_km: 15,
+        max_distance_km: preferredMaxDistanceKm,
       });
 
       window.dispatchEvent(new CustomEvent('post-created', {
@@ -80,8 +85,8 @@ export default function PostRequestPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#0A0A0A] text-[#FFFFFF]">
-      <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md">
+    <main className="flex h-full flex-col bg-[#0A0A0A] text-[#FFFFFF] overflow-hidden">
+      <div className="flex items-center justify-between border-b border-white/6 bg-[#141414]/90 px-4 py-4 backdrop-blur-md shrink-0">
         <button
           onClick={() => {
             if (step > 1) handlePrev();
@@ -96,7 +101,7 @@ export default function PostRequestPage() {
       </div>
 
       {/* Progress Stepper Bar */}
-      <div className="w-full bg-[#141414] py-3.5 border-b border-white/6 px-4">
+      <div className="w-full bg-[#141414] py-3.5 border-b border-white/6 px-4 shrink-0">
         <div className="max-w-md mx-auto flex items-center justify-between">
           {[1, 2].map((num) => (
             <div key={num} className="flex items-center flex-1 last:flex-none">
@@ -123,8 +128,8 @@ export default function PostRequestPage() {
         </div>
       </div>
 
-      {/* Inner Form content container */}
-      <div className="flex-1 max-w-md w-full mx-auto p-6 flex flex-col justify-between pb-24 md:pb-6">
+      {/* Scrollable Form content container */}
+      <div className="flex-1 overflow-y-auto max-w-md w-full mx-auto px-6 py-6 scrollbar-none">
         
         {/* STEP 1: TITLE, CATEGORY & FREQUENCY */}
         {step === 1 && (
@@ -248,6 +253,20 @@ export default function PostRequestPage() {
                 </div>
               </div>
 
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[#A3A3A3]">Preferred max distance (km)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={preferredMaxDistanceKm}
+                  onChange={(e) => setPreferredMaxDistanceKm(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  className="w-full h-12 px-4 rounded-xl border border-white/10 bg-[#141414] text-sm font-mono font-bold text-[#FFFFFF] focus:border-[#A8D97F] focus:outline-none transition-all"
+                />
+                <p className="text-[11px] text-[#8C8F7E] leading-relaxed">
+                  This is how far you are willing to source material from. It will be used for future matching and donor discovery.
+                </p>
+              </div>
+
               {/* Description Details */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-[#A3A3A3]">How will you use this waste?</label>
@@ -268,8 +287,11 @@ export default function PostRequestPage() {
           </div>
         )}
 
-        {/* STEPS CONTROL NAVIGATION */}
-        <div className="mt-8 flex gap-3 pt-4 border-t border-white/6">
+      </div>
+
+      {/* Sticky Bottom Action Buttons Bar */}
+      <div className="sticky bottom-0 z-40 border-t border-white/6 bg-[#141414]/90 backdrop-blur-md px-6 py-4 pb-safe shrink-0">
+        <div className="max-w-md mx-auto flex gap-3">
           {step > 1 && (
             <button
               onClick={handlePrev}
@@ -298,7 +320,6 @@ export default function PostRequestPage() {
             </button>
           )}
         </div>
-
       </div>
     </main>
   );

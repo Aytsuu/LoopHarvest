@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight, MessageSquare, Gift } from 'lucide-react';
+import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight, MessageSquare, Gift, User } from 'lucide-react';
 import { countUnreadThreads, fetchChatThreads } from '@/lib/chat';
 import { useNotificationClient } from '@/components/common/NotificationClientProvider';
 import { createClient as createSupabaseClient } from '@/lib/supabase/client';
@@ -133,6 +133,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
   const items = [
     { label: 'Home Feed', icon: Home, route: '/home' },
     { label: 'Browse', icon: Search, route: '/browse' },
+    { label: 'My Profile', icon: User, route: '/profile' },
     { label: 'Impact Dashboard', icon: BarChart2, route: '/impact' },
     { label: 'Rewards Store', icon: Gift, route: '/rewards' },
     { label: 'Notifications', icon: Bell, route: '/notifications', badge: unreadCount },

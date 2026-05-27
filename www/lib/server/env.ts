@@ -40,6 +40,7 @@ export function getServerSecret(key: string) {
   const candidateFiles = [
     path.join(repoRoot, "supabase", ".env"),
     path.join(repoRoot, "api", ".env"),
+    path.join(repoRoot, "ai_engine", "gateway", ".env"),
   ];
 
   for (const filePath of candidateFiles) {

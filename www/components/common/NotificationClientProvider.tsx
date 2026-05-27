@@ -21,6 +21,7 @@ function getPageTitle(pathname: string) {
   if (pathname === '/browse') return 'Browse - LoopHarvest';
   if (pathname === '/notifications') return 'Notifications - LoopHarvest';
   if (pathname === '/impact') return 'Your Impact - LoopHarvest';
+  if (pathname === '/profile') return 'My Profile - LoopHarvest';
   if (pathname === '/settings') return 'Settings - LoopHarvest';
   if (pathname === '/chat') return 'Messages - LoopHarvest';
   if (pathname.startsWith('/listings/')) return 'Listing - LoopHarvest';

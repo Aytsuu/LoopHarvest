@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { 
-  User, 
   ShieldCheck, 
   Bell, 
   Palette, 
@@ -18,14 +17,11 @@ import type { LucideIcon } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { notificationService } from '@/lib/api/notifications';
 import { ensurePushSubscription, removePushSubscription } from '@/lib/notifications/push';
-import { toListingCardModel, toRequestCardModel, toUserStats } from '@/lib/api/mappers';
-import type { ApiListing, ApiRequest, NotificationSettingsFormData, UserStats } from '@/lib/api/types';
+import type { NotificationSettingsFormData } from '@/lib/api/types';
 import { createClient } from '@/lib/supabase/client';
 import { getProfileAvatarsBucket } from '@/lib/supabase/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// Import newly extracted sub-components
-import MyProfileStats from '@/components/settings/my-profile-stats';
 import Account from '@/components/settings/account';
 import Notifications from '@/components/settings/notifications';
 import Appearance from '@/components/settings/appearance';
@@ -34,19 +30,6 @@ import Billing from '@/components/settings/billing';
 import AdminBroadcasts from '@/components/settings/admin-broadcasts';
 import AdminReleases from '@/components/settings/admin-releases';
 import { isGeneratedAvatarUrl } from '@/lib/users/avatar';
-
-function formatJoinedLabel(value: string | null | undefined) {
-  if (!value) {
-    return 'Joined recently';
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Joined recently';
-  }
-
-  return `Joined ${parsed.toLocaleString('en-US', { month: 'short', year: 'numeric' })}`;
-}
 
 function isLegacyCartoonAvatarUrl(value: string | null | undefined) {
   if (!value) {
@@ -59,7 +42,6 @@ function isLegacyCartoonAvatarUrl(value: string | null | undefined) {
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [supabase] = React.useState(() => createClient());
-  const [activeTab, setActiveTab] = React.useState<'listings' | 'requests' | 'claims'>('listings');
 
   // Form hydration state indicator
   const [isHydrated, setIsHydrated] = React.useState(false);
@@ -123,67 +105,10 @@ export default function ProfilePage() {
     },
   });
 
-  const { data: listingRows = [] } = useQuery({
-    queryKey: ['listings'],
-    queryFn: apiClient.getListings,
-  });
-
-  const { data: requestRows = [] } = useQuery({
-    queryKey: ['requests'],
-    queryFn: apiClient.getRequests,
-  });
-
-  const { data: impactSummary } = useQuery({
-    queryKey: ['impact'],
-    queryFn: apiClient.getImpactSummary,
-  });
-
   const { data: notificationSettings } = useQuery({
     queryKey: ['notification-settings'],
     queryFn: () => notificationService.getSettings(supabase),
   });
-
-  // Dynamically compute user's specific listings
-  const listings = React.useMemo(() => {
-    if (!user || !listingRows) return [];
-    const mapped = listingRows.map(toListingCardModel);
-    return mapped.filter((listing) =>
-      listingRows.some((row) => row.id === listing.id && row.donor_id === user.id)
-    );
-  }, [user, listingRows]);
-
-  // Dynamically compute user's specific requests
-  const requests = React.useMemo(() => {
-    if (!user || !requestRows) return [];
-    const mapped = requestRows.map(toRequestCardModel);
-    return mapped.filter((request) =>
-      requestRows.some((row) => row.id === request.id && row.requester_id === user.id)
-    );
-  }, [user, requestRows]);
-
-  // Dynamically compute listings claimed by the current user
-  const claimedListings = React.useMemo(() => {
-    if (!user || !listingRows) return [];
-    const mapped = listingRows.map(toListingCardModel);
-    return mapped.filter((listing) => listing.claimedBy === user.id);
-  }, [user, listingRows]);
-
-  // Dynamically calculate user's specific impact stats
-  const stats = React.useMemo<UserStats>(() => {
-    if (!impactSummary) {
-      return {
-        kgDiverted: 0,
-        co2Saved: 0,
-        waterSaved: 0,
-        listingsPosted: 0,
-        requestsFulfilled: 0,
-        loopPoints: 0,
-      };
-    }
-    const listingsPosted = listings.length;
-    const requestsFulfilled = requests.filter(r => r.status !== 'open').length;
-    return toUserStats(impactSummary, listingsPosted, requestsFulfilled);
-  }, [impactSummary, listings, requests]);
 
   // Hydrate settings form states safely from active query cache
   React.useEffect(() => {
@@ -237,65 +162,6 @@ export default function ProfilePage() {
       providerAvatarRecoveryStartedRef.current = false;
     });
   }, [queryClient, user]);
-
-  // Mutations
-  const claimMutation = useMutation({
-    mutationFn: (id: string) => apiClient.claimListing(id),
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['listings'] });
-      const previousListings = queryClient.getQueryData<ApiListing[]>(['listings']);
-
-      queryClient.setQueryData<ApiListing[]>(['listings'], (old) =>
-        old ? old.map((l) => (l.id === id ? { ...l, status: 'claimed' } : l)) : []
-      );
-
-      triggerNotification('Listing claimed!');
-      return { previousListings };
-    },
-    onError: (err, id, context) => {
-      if (context?.previousListings) {
-        queryClient.setQueryData(['listings'], context.previousListings);
-      }
-      triggerNotification(err instanceof Error ? err.message : 'Unable to claim listing.');
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['listings'] });
-      void queryClient.invalidateQueries({ queryKey: ['impact'] });
-    },
-  });
-
-  const fulfillMutation = useMutation({
-    mutationFn: (id: string) => apiClient.fulfillRequest(id),
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['requests'] });
-      const previousRequests = queryClient.getQueryData<ApiRequest[]>(['requests']);
-
-      queryClient.setQueryData<ApiRequest[]>(['requests'], (old) =>
-        old ? old.map((r) => (r.id === id ? { ...r, status: 'fulfilled' } : r)) : []
-      );
-
-      triggerNotification('Request fulfilled!');
-      return { previousRequests };
-    },
-    onError: (err, id, context) => {
-      if (context?.previousRequests) {
-        queryClient.setQueryData(['requests'], context.previousRequests);
-      }
-      triggerNotification(err instanceof Error ? err.message : 'Unable to fulfill request.');
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['requests'] });
-      void queryClient.invalidateQueries({ queryKey: ['impact'] });
-    },
-  });
-
-  const handleClaim = async (id: string) => {
-    claimMutation.mutate(id);
-  };
-
-  const handleFulfill = async (id: string) => {
-    fulfillMutation.mutate(id);
-  };
 
   const handleAvatarFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -391,7 +257,7 @@ export default function ProfilePage() {
   };
 
   // Nav Settings Sidebar States
-  const [activeSection, setActiveSection] = React.useState<string>('profile-stats');
+  const [activeSection, setActiveSection] = React.useState<string>('account-details');
   const [mobileActiveSection, setMobileActiveSection] = React.useState<string | null>(null);
 
   // 2. Notification Preferences
@@ -595,12 +461,6 @@ export default function ProfilePage() {
 
   const sections: SettingsSection[] = [
     { 
-      id: 'profile-stats', 
-      label: 'My Profile & Stats', 
-      description: 'Your level progress, score metrics, and active posts', 
-      icon: User,
-    },
-    { 
       id: 'account-details', 
       label: 'Account Settings', 
       description: 'Display name, location, contact, and custom avatar', 
@@ -740,31 +600,7 @@ export default function ProfilePage() {
   // Render active layout form blocks
   const renderActiveSectionContent = (id: string) => {
     switch (id) {
-      // 1. ORIGINAL PROFILE & STATISTICS VIEW
-      case 'profile-stats': {
-        const computedLocation = [city, stateProv, country].filter(Boolean).join(', ') || 'No location specified';
-        const avatarUrl = persistedAvatarUrl ?? user?.avatar_url ?? null;
-        return (
-          <MyProfileStats
-            stats={stats}
-            listings={listings}
-            requests={requests}
-            claimedListings={claimedListings}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            displayName={displayName}
-            avatarUrl={avatarUrl}
-            isPremium={isPremium}
-            joinedLabel={formatJoinedLabel(user?.createdAt)}
-            location={computedLocation}
-            bio={bio}
-            handleClaim={handleClaim}
-            handleFulfill={handleFulfill}
-          />
-        );
-      }
-
-      // 2. ACCOUNT PROFILE DETAILS EDIT
+      // 1. ACCOUNT PROFILE DETAILS EDIT
       case 'account-details':
         const avatarPreviewUrl = persistedAvatarUrl ?? user?.avatar_url ?? null;
         return (
@@ -791,7 +627,7 @@ export default function ProfilePage() {
           />
         );
 
-      // 3. NOTIFICATION RADII & CHANNELS
+      // 2. NOTIFICATION RADII & CHANNELS
       case 'notifications':
         return (
           <Notifications
@@ -818,7 +654,7 @@ export default function ProfilePage() {
           />
         );
 
-      // 4. THEMES, ACCESSIBILITY, GRAPHICS
+      // 3. THEMES, ACCESSIBILITY, GRAPHICS
       case 'appearance':
         return (
           <Appearance
@@ -834,7 +670,7 @@ export default function ProfilePage() {
           />
         );
 
-      // 5. ECO GOALS, WASTE DIVERSIONS & PREFERENCES
+      // 4. ECO GOALS, WASTE DIVERSIONS & PREFERENCES
       case 'sustainability':
         return (
           <SDG
@@ -848,7 +684,7 @@ export default function ProfilePage() {
           />
         );
 
-      // 6. PREMIUM TIERS, PAYMENTS & LOGS
+      // 5. PREMIUM TIERS, PAYMENTS & LOGS
       case 'billing':
         return (
           <Billing
@@ -857,11 +693,11 @@ export default function ProfilePage() {
           />
         );
 
-      // 7. ADMIN-ONLY SYSTEM BROADCASTS CONFIGURATION
+      // 6. ADMIN-ONLY SYSTEM BROADCASTS CONFIGURATION
       case 'admin-broadcasts':
         return <AdminBroadcasts />;
 
-      // 8. ADMIN-ONLY SYSTEM RELEASES MANAGEMENT
+      // 7. ADMIN-ONLY SYSTEM RELEASES MANAGEMENT
       case 'admin-releases':
         return <AdminReleases />;
 
@@ -881,7 +717,7 @@ export default function ProfilePage() {
               Settings
             </h1>
             <p className="text-[11px] text-[#A3A3A3] mt-1 font-semibold">
-              Manage your community profile & configs
+              Manage your account, preferences, and app controls
             </p>
           </div>
           <hr className="border-white/6 my-2" />
@@ -906,7 +742,7 @@ export default function ProfilePage() {
                 Settings
               </h1>
               <p className="text-xs text-[#A3A3A3] mt-1 font-semibold">
-                Manage your community profile & configs
+                Manage your account, preferences, and app controls
               </p>
             </div>
             <div className="bg-[#141414] p-4 rounded-3xl border border-white/6 shadow-xl space-y-2">

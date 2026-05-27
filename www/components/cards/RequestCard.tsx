@@ -44,7 +44,6 @@ export default function RequestCard({ request, onFulfill, onClick }: RequestCard
       </div>
 
       <div className="mt-4 pt-3 border-t border-white/6 flex items-center justify-between">
-        {/* Requester Row */}
         <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -54,7 +53,9 @@ export default function RequestCard({ request, onFulfill, onClick }: RequestCard
           />
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-[#FFFFFF]">{request.requesterName}</span>
-            <span className="text-[9px] text-[#A3A3A3]">{request.city} · {request.distance} km</span>
+            <span className="text-[9px] text-[#A3A3A3]">
+              {request.city} | up to {request.preferredMaxDistanceKm} km
+            </span>
           </div>
         </div>
 

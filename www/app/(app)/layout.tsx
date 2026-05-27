@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { X, Apple, MessageSquare, Check, LogOut, AlertCircle, Info } from 'lucide-react';
 import BottomNav from '@/components/navigation/BottomNav';
 import NavigationRail from '@/components/navigation/NavigationRail';
@@ -38,9 +38,14 @@ type ToastEventDetail = {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isPostingRoute = pathname?.startsWith('/post/');
+  const isChatRoute = pathname?.startsWith('/chat');
+  const isFixedLayout = isPostingRoute || isChatRoute;
   const [mounted, setMounted] = React.useState(false);
   const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = React.useState(false);
+  const [hideBottomNav, setHideBottomNav] = React.useState(false);
   const [toast, setToast] = React.useState<ToastState>({ message: '', show: false });
   const toastTimerRef = React.useRef<number | null>(null);
 
@@ -231,10 +236,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('trigger-signout', handleTriggerSignOut);
   }, []);
 
+  React.useEffect(() => {
+    const handleBottomNavVisibility = (event: Event) => {
+      const customEvent = event as CustomEvent<{ hidden?: boolean }>;
+      setHideBottomNav(Boolean(customEvent.detail?.hidden));
+    };
+
+    window.addEventListener('app-bottom-nav-visibility', handleBottomNavVisibility);
+    return () => window.removeEventListener('app-bottom-nav-visibility', handleBottomNavVisibility);
+  }, []);
+
+  React.useEffect(() => {
+    setHideBottomNav(false);
+  }, [pathname]);
+
   return (
     <NotificationClientProvider>
       <ReleaseNotificationProvider>
-      <div className="relative min-h-screen bg-[#0A0A0A] text-[#FFFFFF]">
+      <div className={`bg-[#0A0A0A] text-[#FFFFFF] ${isFixedLayout ? 'fixed inset-0 h-[100dvh] overflow-hidden flex flex-col' : 'relative min-h-screen'}`}>
       {/* Navigation Rails & Drawers */}
       <NavigationRail
         onPostClick={triggerPostSheet}
@@ -245,7 +264,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content Area */}
       {/* padding bottom is 80px on mobile to prevent navbar covering content, padding left adjusts dynamically with transition */}
-      <div className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'md:pl-20' : 'md:pl-64'
+      <div className={`transition-all duration-300 ease-in-out ${
+        isFixedLayout 
+          ? `h-full flex flex-col overflow-hidden ${isPostingRoute || hideBottomNav ? 'pb-0' : 'pb-20 md:pb-0'}`
+          : hideBottomNav ? 'min-h-screen pb-0' : 'min-h-screen pb-20 md:pb-0'
+      } ${isSidebarCollapsed ? 'md:pl-20' : 'md:pl-64'
         }`}>
         {mounted ? children : (
           <div className="flex h-[calc(100vh-80px)] md:h-screen w-full items-center justify-center bg-[#0A0A0A]">
@@ -266,7 +289,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Bottom Nav (Mobile only) */}
-      <BottomNav onPostClick={triggerPostSheet} />
+      {!isPostingRoute && !hideBottomNav && <BottomNav onPostClick={triggerPostSheet} />}
 
       {/* Post Bottom Sheet (M3 Modal overlay) */}
       {isPostSheetOpen && (
