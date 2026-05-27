@@ -53,3 +53,15 @@ async def complete_listing(listing_id: str, current_user: CurrentUser) -> ApiEnv
         data=await listing_service.complete_listing(listing_id, current_user.id),
         message="Listing handoff completed.",
     )
+
+
+@router.post(
+    "/{listing_id}/cancel",
+    response_model=ApiEnvelope[Listing],
+    summary="Cancel listing claim",
+)
+async def cancel_listing_claim(listing_id: str, current_user: CurrentUser) -> ApiEnvelope[Listing]:
+    return ApiEnvelope(
+        data=await listing_service.cancel_claim(listing_id, current_user.id),
+        message="Listing claim cancelled.",
+    )

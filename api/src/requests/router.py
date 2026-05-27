@@ -38,6 +38,30 @@ async def create_request(payload: RequestCreate, current_user: CurrentUser) -> A
 )
 async def fulfill_request(request_id: str, current_user: CurrentUser) -> ApiEnvelope[Request]:
     return ApiEnvelope(
-        data=await request_service.fulfill_request(request_id),
+        data=await request_service.fulfill_request(request_id, current_user.id),
         message="Request fulfilled.",
+    )
+
+
+@router.post(
+    "/{request_id}/close",
+    response_model=ApiEnvelope[Request],
+    summary="Close request loop",
+)
+async def close_request(request_id: str, current_user: CurrentUser) -> ApiEnvelope[Request]:
+    return ApiEnvelope(
+        data=await request_service.close_request(request_id, current_user.id),
+        message="Request loop closed.",
+    )
+
+
+@router.post(
+    "/{request_id}/cancel",
+    response_model=ApiEnvelope[Request],
+    summary="Cancel request fulfillment",
+)
+async def cancel_request_fulfillment(request_id: str, current_user: CurrentUser) -> ApiEnvelope[Request]:
+    return ApiEnvelope(
+        data=await request_service.cancel_fulfillment(request_id, current_user.id),
+        message="Request fulfillment cancelled.",
     )

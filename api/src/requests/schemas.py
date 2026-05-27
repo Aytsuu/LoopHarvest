@@ -38,5 +38,6 @@ class Request(RequestBase):
     requester_id: UUID
     requester_name: str | None = None
     requester_avatar_url: str | None = None
+    fulfilled_by: UUID | None = None
     status: Literal["open", "fulfilled", "closed"] = "open"
     created_at: datetime = Field(default_factory=datetime.utcnow)

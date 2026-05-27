@@ -19,7 +19,13 @@ class RequestRepository:
     async def get_request(self, request_id: str) -> Request:
         raise NotImplementedError
 
-    async def fulfill_request(self, request_id: str) -> Request:
+    async def fulfill_request(self, request_id: str, actor_id: UUID) -> Request:
+        raise NotImplementedError
+
+    async def close_request(self, request_id: str, actor_id: UUID) -> Request:
+        raise NotImplementedError
+
+    async def cancel_fulfillment(self, request_id: str, actor_id: UUID) -> Request:
         raise NotImplementedError
 
 
@@ -35,6 +41,7 @@ class InMemoryRequestRepository(RequestRepository):
             **payload.model_dump(),
             requester_id=requester_id,
             requester_name="Current User",
+            fulfilled_by=None,
         )
         self._requests.insert(0, request)
         return request
@@ -45,7 +52,7 @@ class InMemoryRequestRepository(RequestRepository):
                 return request
         raise NotFoundException("Request")
 
-    async def fulfill_request(self, request_id: str) -> Request:
+    async def fulfill_request(self, request_id: str, actor_id: UUID) -> Request:
         for index, request in enumerate(self._requests):
             if str(request.id) != request_id:
                 continue
@@ -55,7 +62,52 @@ class InMemoryRequestRepository(RequestRepository):
                     code="request_unavailable",
                     message="This request is no longer open.",
                 )
-            updated_request = request.model_copy(update={"status": "fulfilled"})
+            updated_request = request.model_copy(update={"status": "fulfilled", "fulfilled_by": actor_id})
+            self._requests[index] = updated_request
+            return updated_request
+        raise NotFoundException("Request")
+
+    async def close_request(self, request_id: str, actor_id: UUID) -> Request:
+        for index, request in enumerate(self._requests):
+            if str(request.id) != request_id:
+                continue
+            if request.status != "fulfilled":
+                raise ApiException(
+                    status_code=409,
+                    code="request_not_ready_to_close",
+                    message="Only requests already being fulfilled can close the loop.",
+                )
+            if request.requester_id != actor_id:
+                raise ApiException(
+                    status_code=403,
+                    code="request_closure_forbidden",
+                    message="Only the requester can close this loop.",
+                )
+            updated_request = request.model_copy(update={"status": "closed"})
+            self._requests[index] = updated_request
+            return updated_request
+        raise NotFoundException("Request")
+
+    async def cancel_fulfillment(self, request_id: str, actor_id: UUID) -> Request:
+        for index, request in enumerate(self._requests):
+            if str(request.id) != request_id:
+                continue
+            if request.status != "fulfilled":
+                raise ApiException(
+                    status_code=409,
+                    code="request_fulfillment_not_cancellable",
+                    message="Only requests in fulfillment can be reopened.",
+                )
+            allowed_actor_ids = {request.requester_id}
+            if request.fulfilled_by is not None:
+                allowed_actor_ids.add(request.fulfilled_by)
+            if actor_id not in allowed_actor_ids:
+                raise ApiException(
+                    status_code=403,
+                    code="request_fulfillment_cancellation_forbidden",
+                    message="You are not allowed to cancel this fulfillment.",
+                )
+            updated_request = request.model_copy(update={"status": "open", "fulfilled_by": None})
             self._requests[index] = updated_request
             return updated_request
         raise NotFoundException("Request")
@@ -73,7 +125,7 @@ class SupabaseRequestRepository(RequestRepository):
             "requests",
             columns=(
                 "id,requester_id,title,description,category_slug,quantity_kg_min,"
-                "quantity_kg_max,frequency,city,country,max_distance_km,status,created_at"
+                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
             ),
             order="created_at.desc",
         )
@@ -95,7 +147,7 @@ class SupabaseRequestRepository(RequestRepository):
             "requests",
             columns=(
                 "id,requester_id,title,description,category_slug,quantity_kg_min,"
-                "quantity_kg_max,frequency,city,country,max_distance_km,status,created_at"
+                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
             ),
             filters={"id": f"eq.{request_id}"},
         )
@@ -104,10 +156,10 @@ class SupabaseRequestRepository(RequestRepository):
         enriched = await self._enrich(rows)
         return enriched[0]
 
-    async def fulfill_request(self, request_id: str) -> Request:
+    async def fulfill_request(self, request_id: str, actor_id: UUID) -> Request:
         row = await self._rest.update(
             "requests",
-            payload={"status": "fulfilled"},
+            payload={"status": "fulfilled", "fulfilled_by": str(actor_id)},
             filters={"id": f"eq.{request_id}", "status": "eq.open"},
         )
         if row is None:
@@ -122,6 +174,92 @@ class SupabaseRequestRepository(RequestRepository):
                 status_code=409,
                 code="request_unavailable",
                 message="This request is no longer open.",
+            )
+        enriched = await self._enrich([row])
+        return enriched[0]
+
+    async def close_request(self, request_id: str, actor_id: UUID) -> Request:
+        current_rows = await self._rest.select(
+            "requests",
+            columns=(
+                "id,requester_id,title,description,category_slug,quantity_kg_min,"
+                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
+            ),
+            filters={"id": f"eq.{request_id}"},
+        )
+        if not current_rows:
+            raise NotFoundException("Request")
+
+        current = current_rows[0]
+        if current["status"] != "fulfilled":
+            raise ApiException(
+                status_code=409,
+                code="request_not_ready_to_close",
+                message="Only requests already being fulfilled can close the loop.",
+            )
+        if UUID(str(current["requester_id"])) != actor_id:
+            raise ApiException(
+                status_code=403,
+                code="request_closure_forbidden",
+                message="Only the requester can close this loop.",
+            )
+
+        row = await self._rest.update(
+            "requests",
+            payload={"status": "closed"},
+            filters={"id": f"eq.{request_id}", "status": "eq.fulfilled"},
+        )
+        if row is None:
+            raise ApiException(
+                status_code=409,
+                code="request_not_ready_to_close",
+                message="Only requests already being fulfilled can close the loop.",
+            )
+        enriched = await self._enrich([row])
+        return enriched[0]
+
+    async def cancel_fulfillment(self, request_id: str, actor_id: UUID) -> Request:
+        current_rows = await self._rest.select(
+            "requests",
+            columns=(
+                "id,requester_id,title,description,category_slug,quantity_kg_min,"
+                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
+            ),
+            filters={"id": f"eq.{request_id}"},
+        )
+        if not current_rows:
+            raise NotFoundException("Request")
+
+        current = current_rows[0]
+        if current["status"] != "fulfilled":
+            raise ApiException(
+                status_code=409,
+                code="request_fulfillment_not_cancellable",
+                message="Only requests in fulfillment can be reopened.",
+            )
+        requester_id = UUID(str(current["requester_id"]))
+        fulfilled_by_raw = current.get("fulfilled_by")
+        fulfilled_by = UUID(str(fulfilled_by_raw)) if fulfilled_by_raw else None
+        allowed_actor_ids = {requester_id}
+        if fulfilled_by is not None:
+            allowed_actor_ids.add(fulfilled_by)
+        if actor_id not in allowed_actor_ids:
+            raise ApiException(
+                status_code=403,
+                code="request_fulfillment_cancellation_forbidden",
+                message="You are not allowed to cancel this fulfillment.",
+            )
+
+        row = await self._rest.update(
+            "requests",
+            payload={"status": "open", "fulfilled_by": None},
+            filters={"id": f"eq.{request_id}", "status": "eq.fulfilled"},
+        )
+        if row is None:
+            raise ApiException(
+                status_code=409,
+                code="request_fulfillment_not_cancellable",
+                message="Only requests in fulfillment can be reopened.",
             )
         enriched = await self._enrich([row])
         return enriched[0]
@@ -148,6 +286,7 @@ class SupabaseRequestRepository(RequestRepository):
             requester_id=row["requester_id"],
             requester_name=user_name,
             requester_avatar_url=avatar_url,
+            fulfilled_by=row.get("fulfilled_by"),
             title=row["title"],
             description=row.get("description"),
             category_slug=row["category_slug"],
@@ -175,8 +314,14 @@ class RequestService:
     async def get_request(self, request_id: str) -> Request:
         return await self._repository.get_request(request_id)
 
-    async def fulfill_request(self, request_id: str) -> Request:
-        return await self._repository.fulfill_request(request_id)
+    async def fulfill_request(self, request_id: str, actor_id: UUID) -> Request:
+        return await self._repository.fulfill_request(request_id, actor_id)
+
+    async def close_request(self, request_id: str, actor_id: UUID) -> Request:
+        return await self._repository.close_request(request_id, actor_id)
+
+    async def cancel_fulfillment(self, request_id: str, actor_id: UUID) -> Request:
+        return await self._repository.cancel_fulfillment(request_id, actor_id)
 
 
 def _build_request_repository(settings: Settings) -> RequestRepository:

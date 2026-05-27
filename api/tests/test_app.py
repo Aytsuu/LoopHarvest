@@ -136,6 +136,7 @@ async def test_create_request(client):
     assert payload["success"] is True
     assert payload["data"]["status"] == "open"
     assert payload["data"]["frequency"] == "weekly"
+    assert payload["data"]["max_distance_km"] == "12"
 
 
 async def test_claim_listing(client):
@@ -229,8 +230,50 @@ async def test_complete_listing_from_claimed_allows_finishing_handoff(client):
     assert complete_response.json()["data"]["status"] == "completed"
 
 
+async def test_cancel_claimed_listing_reopens_it(client):
+    donor_user = _fake_user()
+    recipient_user = AuthenticatedUser(
+        id=uuid4(),
+        email="recipient@example.com",
+        display_name="Community Recipient",
+    )
+    app.dependency_overrides[get_current_user] = lambda: donor_user
+    create_response = await client.post(
+        "/api/v1/listings",
+        json={
+            "title": "Fresh peelings",
+            "description": "Collected today.",
+            "category_slug": "vegetable-scraps",
+            "quantity_kg": "4",
+            "claim_type": "direct",
+            "pickup_address": "456 Grove St",
+            "city": "Manila",
+            "country": "Philippines",
+        },
+    )
+
+    listing_id = create_response.json()["data"]["id"]
+    app.dependency_overrides[get_current_user] = lambda: recipient_user
+    claim_response = await client.post(f"/api/v1/listings/{listing_id}/claim")
+    assert claim_response.status_code == 200
+
+    cancel_response = await client.post(f"/api/v1/listings/{listing_id}/cancel")
+    app.dependency_overrides.clear()
+
+    assert cancel_response.status_code == 200
+    payload = cancel_response.json()["data"]
+    assert payload["status"] == "open"
+    assert payload["claimed_by"] is None
+
+
 async def test_fulfill_request(client):
-    app.dependency_overrides[get_current_user] = _fake_user
+    requester_user = _fake_user()
+    fulfiller_user = AuthenticatedUser(
+        id=uuid4(),
+        email="fulfiller@example.com",
+        display_name="Local Supplier",
+    )
+    app.dependency_overrides[get_current_user] = lambda: requester_user
     create_response = await client.post(
         "/api/v1/requests",
         json={
@@ -247,11 +290,125 @@ async def test_fulfill_request(client):
     )
 
     request_id = create_response.json()["data"]["id"]
+    app.dependency_overrides[get_current_user] = lambda: fulfiller_user
     fulfill_response = await client.post(f"/api/v1/requests/{request_id}/fulfill")
     app.dependency_overrides.clear()
 
     assert fulfill_response.status_code == 200
-    assert fulfill_response.json()["data"]["status"] == "fulfilled"
+    payload = fulfill_response.json()["data"]
+    assert payload["status"] == "fulfilled"
+    assert payload["fulfilled_by"] == str(fulfiller_user.id)
+
+
+async def test_close_fulfilled_request(client):
+    requester_user = _fake_user()
+    fulfiller_user = AuthenticatedUser(
+        id=uuid4(),
+        email="fulfiller@example.com",
+        display_name="Local Supplier",
+    )
+    app.dependency_overrides[get_current_user] = lambda: requester_user
+    create_response = await client.post(
+        "/api/v1/requests",
+        json={
+            "title": "Weekly peelings",
+            "description": "Need material for composting.",
+            "category_slug": "vegetable-scraps",
+            "quantity_kg_min": "2",
+            "quantity_kg_max": "8",
+            "frequency": "weekly",
+            "city": "Quezon City",
+            "country": "Philippines",
+            "max_distance_km": "10",
+        },
+    )
+
+    request_id = create_response.json()["data"]["id"]
+    app.dependency_overrides[get_current_user] = lambda: fulfiller_user
+    fulfill_response = await client.post(f"/api/v1/requests/{request_id}/fulfill")
+    assert fulfill_response.status_code == 200
+
+    app.dependency_overrides[get_current_user] = lambda: requester_user
+    close_response = await client.post(f"/api/v1/requests/{request_id}/close")
+    app.dependency_overrides.clear()
+
+    assert close_response.status_code == 200
+    assert close_response.json()["data"]["status"] == "closed"
+
+
+async def test_cancel_fulfilled_request_reopens_it(client):
+    requester_user = _fake_user()
+    fulfiller_user = AuthenticatedUser(
+        id=uuid4(),
+        email="fulfiller@example.com",
+        display_name="Local Supplier",
+    )
+    app.dependency_overrides[get_current_user] = lambda: requester_user
+    create_response = await client.post(
+        "/api/v1/requests",
+        json={
+            "title": "Weekly peelings",
+            "description": "Need material for composting.",
+            "category_slug": "vegetable-scraps",
+            "quantity_kg_min": "2",
+            "quantity_kg_max": "8",
+            "frequency": "weekly",
+            "city": "Quezon City",
+            "country": "Philippines",
+            "max_distance_km": "10",
+        },
+    )
+
+    request_id = create_response.json()["data"]["id"]
+    app.dependency_overrides[get_current_user] = lambda: fulfiller_user
+    fulfill_response = await client.post(f"/api/v1/requests/{request_id}/fulfill")
+    assert fulfill_response.status_code == 200
+
+    app.dependency_overrides[get_current_user] = lambda: requester_user
+    cancel_response = await client.post(f"/api/v1/requests/{request_id}/cancel")
+    app.dependency_overrides.clear()
+
+    assert cancel_response.status_code == 200
+    payload = cancel_response.json()["data"]
+    assert payload["status"] == "open"
+    assert payload["fulfilled_by"] is None
+
+
+async def test_fulfiller_can_cancel_fulfilled_request(client):
+    requester_user = _fake_user()
+    fulfiller_user = AuthenticatedUser(
+        id=uuid4(),
+        email="fulfiller@example.com",
+        display_name="Local Supplier",
+    )
+    app.dependency_overrides[get_current_user] = lambda: requester_user
+    create_response = await client.post(
+        "/api/v1/requests",
+        json={
+            "title": "Weekly peelings",
+            "description": "Need material for composting.",
+            "category_slug": "vegetable-scraps",
+            "quantity_kg_min": "2",
+            "quantity_kg_max": "8",
+            "frequency": "weekly",
+            "city": "Quezon City",
+            "country": "Philippines",
+            "max_distance_km": "10",
+        },
+    )
+
+    request_id = create_response.json()["data"]["id"]
+    app.dependency_overrides[get_current_user] = lambda: fulfiller_user
+    fulfill_response = await client.post(f"/api/v1/requests/{request_id}/fulfill")
+    assert fulfill_response.status_code == 200
+
+    cancel_response = await client.post(f"/api/v1/requests/{request_id}/cancel")
+    app.dependency_overrides.clear()
+
+    assert cancel_response.status_code == 200
+    payload = cancel_response.json()["data"]
+    assert payload["status"] == "open"
+    assert payload["fulfilled_by"] is None
 
 
 async def test_missing_category_returns_enveloped_not_found(client):

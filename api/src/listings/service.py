@@ -25,6 +25,9 @@ class ListingRepository:
     async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
         raise NotImplementedError
 
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        raise NotImplementedError
+
 
 class InMemoryListingRepository(ListingRepository):
     def __init__(self) -> None:
@@ -94,6 +97,31 @@ class InMemoryListingRepository(ListingRepository):
             updated_listing = listing.model_copy(
                 update={"status": "completed", "claimed_by": claimed_by}
             )
+            self._listings[index] = updated_listing
+            return updated_listing
+        raise NotFoundException("Listing")
+
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        for index, listing in enumerate(self._listings):
+            if str(listing.id) != listing_id:
+                continue
+            if listing.status != "claimed":
+                raise ApiException(
+                    status_code=409,
+                    code="listing_claim_not_cancellable",
+                    message="Only claimed listings can be reopened.",
+                )
+            allowed_actor_ids = {listing.donor_id}
+            if listing.claimed_by is not None:
+                allowed_actor_ids.add(listing.claimed_by)
+            if actor_id not in allowed_actor_ids:
+                raise ApiException(
+                    status_code=403,
+                    code="listing_claim_cancellation_forbidden",
+                    message="You are not allowed to cancel this listing claim.",
+                )
+
+            updated_listing = listing.model_copy(update={"status": "open", "claimed_by": None})
             self._listings[index] = updated_listing
             return updated_listing
         raise NotFoundException("Listing")
@@ -225,6 +253,54 @@ class SupabaseListingRepository(ListingRepository):
         enriched = await self._enrich([row])
         return enriched[0]
 
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        current_rows = await self._rest.select(
+            "listings",
+            columns=(
+                "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
+                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "status,claimed_by,created_at"
+            ),
+            filters={"id": f"eq.{listing_id}"},
+        )
+        if not current_rows:
+            raise NotFoundException("Listing")
+
+        current = current_rows[0]
+        if current["status"] != "claimed":
+            raise ApiException(
+                status_code=409,
+                code="listing_claim_not_cancellable",
+                message="Only claimed listings can be reopened.",
+            )
+
+        donor_id = UUID(str(current["donor_id"]))
+        claimed_by_raw = current.get("claimed_by")
+        claimed_by = UUID(str(claimed_by_raw)) if claimed_by_raw else None
+        allowed_actor_ids = {donor_id}
+        if claimed_by is not None:
+            allowed_actor_ids.add(claimed_by)
+        if actor_id not in allowed_actor_ids:
+            raise ApiException(
+                status_code=403,
+                code="listing_claim_cancellation_forbidden",
+                message="You are not allowed to cancel this listing claim.",
+            )
+
+        row = await self._rest.update(
+            "listings",
+            payload={"status": "open", "claimed_by": None},
+            filters={"id": f"eq.{listing_id}", "status": "eq.claimed"},
+        )
+        if row is None:
+            raise ApiException(
+                status_code=409,
+                code="listing_claim_not_cancellable",
+                message="Only claimed listings can be reopened.",
+            )
+        enriched = await self._enrich([row])
+        return enriched[0]
+
     async def _enrich(self, rows: list[dict]) -> list[Listing]:
         donor_ids = [row["donor_id"] for row in rows]
         user_rows = await self._rest.by_ids(
@@ -282,6 +358,9 @@ class ListingService:
 
     async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
         return await self._repository.complete_listing(listing_id, actor_id)
+
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        return await self._repository.cancel_claim(listing_id, actor_id)
 
 
 def _build_listing_repository(settings: Settings) -> ListingRepository:
