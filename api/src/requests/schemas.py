@@ -17,6 +17,8 @@ class RequestBase(ApiModel):
     frequency: str = Field(default="one-time", min_length=1, max_length=32)
     city: str = Field(min_length=1, max_length=120)
     country: str = Field(min_length=1, max_length=120)
+    location_latitude: Decimal | None = None
+    location_longitude: Decimal | None = None
     max_distance_km: Decimal = Field(default=Decimal("10"), gt=0)
 
     @model_validator(mode="after")
@@ -38,5 +40,6 @@ class Request(RequestBase):
     requester_id: UUID
     requester_name: str | None = None
     requester_avatar_url: str | None = None
+    fulfilled_by: UUID | None = None
     status: Literal["open", "fulfilled", "closed"] = "open"
     created_at: datetime = Field(default_factory=datetime.utcnow)

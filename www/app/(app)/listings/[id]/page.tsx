@@ -35,6 +35,7 @@ export default function ListingDetailPage() {
   const isRecipient = currentUser && listing ? currentUser.id === listing.claimedBy : false;
   const canComplete = listing && listing.status === 'claimed' && (isOwner || isRecipient);
   const canMessageClaimParticipant = !!listing && listing.claimType === 'direct' && listing.status === 'claimed' && (isOwner || isRecipient);
+  const canCancelClaim = !!listing && listing.status === 'claimed' && (isOwner || isRecipient);
 
   const handleMessageDonor = () => {
     if (!listing) return;
@@ -121,10 +122,37 @@ export default function ListingDetailPage() {
     },
   });
 
+  const cancelClaimMutation = useMutation({
+    mutationFn: () => apiClient.cancelListingClaim(id),
+    onMutate: async () => {
+      setError(null);
+      await queryClient.cancelQueries({ queryKey: ['listing', id] });
+      const previousListing = queryClient.getQueryData<Listing>(['listing', id]);
+
+      queryClient.setQueryData<Listing>(['listing', id], (old) =>
+        old ? { ...old, status: 'open', claimedBy: null } : undefined,
+      );
+
+      window.dispatchEvent(new CustomEvent('post-created', { detail: 'Listing claim cancelled.' }));
+      return { previousListing };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousListing) {
+        queryClient.setQueryData(['listing', id], context.previousListing);
+      }
+      setError(err instanceof Error ? err.message : 'Unable to cancel this listing claim.');
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['listing', id] });
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['impact'] });
+    },
+  });
+
   if (displayError && !listing) {
     return (
       <div className="flex min-h-screen flex-col bg-[#0A0A0A] px-4 py-6 text-[#FFFFFF]">
-        <button onClick={() => router.back()} className="mb-6 w-fit rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold">
+        <button onClick={() => router.back()} className="mb-6 w-fit rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold cursor-pointer">
           Back
         </button>
         <div className="rounded-2xl border border-[#E05656]/30 bg-[#7A1010]/20 p-6 text-sm text-[#FFB4AB]">{displayError}</div>
@@ -143,7 +171,7 @@ export default function ListingDetailPage() {
   return (
     <main className="min-h-screen bg-[#0A0A0A] text-[#FFFFFF]">
       <div className="mx-auto max-w-5xl px-4 py-6 pb-36 md:pb-12">
-        <button onClick={() => router.back()} className="mb-6 rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold transition hover:bg-white/4">
+        <button onClick={() => router.back()} className="mb-6 rounded-full border border-white/10 px-3 py-1.5 text-xs font-bold transition hover:bg-white/4 cursor-pointer">
           Back
         </button>
 
@@ -302,14 +330,33 @@ export default function ListingDetailPage() {
                 </p>
               </div>
 
-              {listing.status === 'claimed' && canMessageClaimParticipant ? (
-                <button
-                  onClick={handleMessageClaimParticipant}
-                  className="h-11 w-full rounded-xl bg-[#2A4A10] border border-[#A8D97F]/20 text-xs font-black text-[#A8D97F] transition duration-200 hover:bg-[#2A4A10]/80 hover:brightness-105 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <MessageSquare size={14} />
-                  <span>{isOwner ? 'Message Recipient' : 'Message Donor'}</span>
-                </button>
+              {listing.status === 'claimed' ? (
+                <div className="space-y-3">
+                  {canMessageClaimParticipant ? (
+                    <button
+                      onClick={handleMessageClaimParticipant}
+                      className="h-11 w-full rounded-xl bg-[#2A4A10] border border-[#A8D97F]/20 text-xs font-black text-[#A8D97F] transition duration-200 hover:bg-[#2A4A10]/80 hover:brightness-105 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <MessageSquare size={14} />
+                      <span>{isOwner ? 'Message Recipient' : 'Message Donor'}</span>
+                    </button>
+                  ) : null}
+
+                  {canCancelClaim ? (
+                    <button
+                      type="button"
+                      onClick={() => cancelClaimMutation.mutate()}
+                      disabled={cancelClaimMutation.isPending}
+                      className="h-11 w-full rounded-xl border border-[#E05656]/25 bg-[#7A1010]/20 text-xs font-black text-[#FFB4AB] transition duration-200 hover:bg-[#7A1010]/30 cursor-pointer disabled:opacity-60"
+                    >
+                      {cancelClaimMutation.isPending ? 'Cancelling...' : 'Cancel Claim'}
+                    </button>
+                  ) : (
+                    <button disabled className="h-11 w-full rounded-xl bg-[#2A4A10] text-xs font-black text-[#87B85E] opacity-60 cursor-not-allowed">
+                      Already Claimed
+                    </button>
+                  )}
+                </div>
               ) : isOwner ? (
                 <button disabled className="h-11 w-full rounded-xl bg-[#222222] border border-white/10 text-xs font-bold text-[#A3A3A3] opacity-80 cursor-not-allowed">
                   Your Listing
@@ -332,10 +379,6 @@ export default function ListingDetailPage() {
                     {claimMutation.isPending ? 'Claiming...' : 'Claim Listing'}
                   </button>
                 )
-              ) : listing.status === 'claimed' ? (
-                <button disabled className="h-11 w-full rounded-xl bg-[#2A4A10] text-xs font-black text-[#87B85E] opacity-60 cursor-not-allowed">
-                  Already Claimed
-                </button>
               ) : (
                 <button disabled className="h-11 w-full rounded-xl bg-[#0E3E3B] text-xs font-black text-[#4ECDC4] opacity-80 cursor-not-allowed">
                   Loop Closed 🎉
@@ -369,14 +412,32 @@ export default function ListingDetailPage() {
           <span className="block text-xs font-black font-mono text-[#FFFFFF]">{listing.quantity} {listing.unit}</span>
         </div>
         
-        {listing.status === 'claimed' && canMessageClaimParticipant ? (
-          <button
-            onClick={handleMessageClaimParticipant}
-            className="h-10 px-5 rounded-xl bg-[#2A4A10] border border-[#A8D97F]/20 text-xs font-black text-[#A8D97F] transition hover:brightness-105 active:scale-[0.98] shrink-0 cursor-pointer flex items-center gap-1"
-          >
-            <MessageSquare size={12} />
-            <span>{isOwner ? 'Message Recipient' : 'Message Donor'}</span>
-          </button>
+        {listing.status === 'claimed' ? (
+          <div className="flex items-center gap-2 shrink-0">
+            {canMessageClaimParticipant ? (
+              <button
+                onClick={handleMessageClaimParticipant}
+                className="h-10 px-4 rounded-xl bg-[#2A4A10] border border-[#A8D97F]/20 text-xs font-black text-[#A8D97F] transition hover:brightness-105 active:scale-[0.98] cursor-pointer flex items-center gap-1"
+              >
+                <MessageSquare size={12} />
+                <span>Message</span>
+              </button>
+            ) : null}
+            {canCancelClaim ? (
+              <button
+                type="button"
+                onClick={() => cancelClaimMutation.mutate()}
+                disabled={cancelClaimMutation.isPending}
+                className="h-10 px-4 rounded-xl border border-[#E05656]/25 bg-[#7A1010]/20 text-xs font-black text-[#FFB4AB] transition active:scale-[0.98] cursor-pointer disabled:opacity-60"
+              >
+                {cancelClaimMutation.isPending ? 'Cancelling...' : 'Cancel'}
+              </button>
+            ) : (
+              <button disabled className="h-10 px-4 rounded-xl bg-[#2A4A10] text-xs font-black text-[#87B85E] opacity-60 shrink-0 cursor-not-allowed">
+                Claimed
+              </button>
+            )}
+          </div>
         ) : isOwner ? (
           <button disabled className="h-10 px-5 rounded-xl bg-[#222222] border border-white/10 text-xs font-bold text-[#A3A3A3] opacity-80 cursor-not-allowed shrink-0">
             Your Listing
@@ -399,10 +460,6 @@ export default function ListingDetailPage() {
               {claimMutation.isPending ? 'Claiming...' : 'Claim'}
             </button>
           )
-        ) : listing.status === 'claimed' ? (
-          <button disabled className="h-10 px-5 rounded-xl bg-[#2A4A10] text-xs font-black text-[#87B85E] opacity-60 shrink-0 cursor-not-allowed">
-            Claimed
-          </button>
         ) : (
           <button disabled className="h-10 px-5 rounded-xl bg-[#0E3E3B] text-xs font-black text-[#4ECDC4] opacity-80 shrink-0 cursor-not-allowed">
             Completed

@@ -12,6 +12,7 @@ import { apiClient } from "@/lib/api/client";
 import { toListingCardModel, toRequestCardModel, toUserStats } from "@/lib/api/mappers";
 import type { CategorySlug } from "@/lib/categories";
 import type { ApiListing, ApiRequest, Listing, RequestItem, UserStats } from "@/lib/api/types";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 
 const EMPTY_STATS: UserStats = {
   kgDiverted: 0,
@@ -25,6 +26,7 @@ const EMPTY_STATS: UserStats = {
 export default function HomeFeed() {
   const { categories } = useCategories();
   const queryClient = useQueryClient();
+  const [supabase] = React.useState(() => createSupabaseClient());
   const [activeTab, setActiveTab] = React.useState<"listings" | "requests">("listings");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState<CategorySlug | null>(null);
@@ -50,6 +52,22 @@ export default function HomeFeed() {
   const { data: impactSummary, isLoading: impactLoading, error: impactError } = useQuery({
     queryKey: ["impact"],
     queryFn: apiClient.getImpactSummary,
+  });
+
+  const { data: currentUser } = useQuery({
+    queryKey: ["home-current-user"],
+    queryFn: async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (error) {
+        throw error;
+      }
+
+      return user;
+    },
   });
 
   const stats = React.useMemo(() => {
@@ -184,10 +202,6 @@ export default function HomeFeed() {
     return matchesSearch && matchesCategory && isOpen;
   });
 
-  const matches = activeTab === "listings"
-    ? listings.filter((listing) => listing.status === "open").slice(0, 3)
-    : requests.filter((request) => request.status === "open").slice(0, 3);
-
   return (
     <main className="min-h-screen flex-1 bg-[#0A0A0A] text-[#FFFFFF]">
       <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 pb-24 md:pb-8">
@@ -232,7 +246,7 @@ export default function HomeFeed() {
             <div className={`pointer-events-none absolute bottom-0 left-0 top-0 z-10 flex w-12 items-center pl-1 bg-gradient-to-r from-[#0A0A0A] to-transparent ${showLeftArrow ? "opacity-100" : "opacity-0"}`}>
               <button
                 onClick={() => scrollCategories("left")}
-                className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3]"
+                className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3] cursor-pointer"
                 aria-label="Previous Categories"
               >
                 <ChevronLeft size={14} />
@@ -242,7 +256,7 @@ export default function HomeFeed() {
             <div ref={categoriesRef} onScroll={checkScroll} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
               <button
                 onClick={() => setSelectedCategory(null)}
-                className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-wider ${selectedCategory === null ? "border-[#A8D97F] bg-[rgba(168,217,127,0.1)] text-[#A8D97F]" : "border-white/8 bg-[#141414] text-[#A3A3A3]"}`}
+                className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer ${selectedCategory === null ? "border-[#A8D97F] bg-[rgba(168,217,127,0.1)] text-[#A8D97F]" : "border-white/8 bg-[#141414] text-[#A3A3A3]"}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/globe.svg" alt="" className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
@@ -261,7 +275,7 @@ export default function HomeFeed() {
             <div className={`pointer-events-none absolute bottom-0 right-0 top-0 z-10 flex w-12 items-center justify-end pr-1 bg-gradient-to-l from-[#0A0A0A] to-transparent ${showRightArrow ? "opacity-100" : "opacity-0"}`}>
               <button
                 onClick={() => scrollCategories("right")}
-                className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3]"
+                className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#A3A3A3] cursor-pointer"
                 aria-label="Next Categories"
               >
                 <ChevronRight size={14} />
@@ -270,45 +284,19 @@ export default function HomeFeed() {
           </div>
         </div>
 
-        {!loading && matches.length > 0 && !searchQuery && !selectedCategory && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-[#A8D97F]" />
-                <h2 className="font-display text-lg font-bold tracking-tight text-[#FFFFFF]">
-                  Recently Posted
-                </h2>
-              </div>
-            </div>
-
-            <div className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-none">
-              {activeTab === "listings"
-                ? (matches as Listing[]).map((listing) => (
-                    <div key={listing.id} className="w-80 shrink-0 snap-start">
-                      <ListingCard listing={listing} onClaim={handleClaim} />
-                    </div>
-                  ))
-                : (matches as RequestItem[]).map((request) => (
-                    <div key={request.id} className="w-80 shrink-0 snap-start">
-                      <RequestCard request={request} onFulfill={handleFulfill} />
-                    </div>
-                  ))}
-            </div>
-          </div>
-        )}
 
         <div className="flex flex-col gap-4 border-t border-white/6 pt-6">
           <div className="flex items-center justify-between">
             <div className="flex rounded-lg border border-white/6 bg-[#141414] p-1">
               <button
                 onClick={() => setActiveTab("listings")}
-                className={`rounded-md px-4 py-2 text-xs font-bold transition-all ${activeTab === "listings" ? "bg-[#2A4A10] text-[#A8D97F]" : "text-[#A3A3A3]"}`}
+                className={`rounded-md px-4 py-2 text-xs font-bold transition-all cursor-pointer ${activeTab === "listings" ? "bg-[#2A4A10] text-[#A8D97F]" : "text-[#A3A3A3]"}`}
               >
                 Available waste ({listings.filter((listing) => listing.status === "open").length})
               </button>
               <button
                 onClick={() => setActiveTab("requests")}
-                className={`rounded-md px-4 py-2 text-xs font-bold transition-all ${activeTab === "requests" ? "bg-[#2A4A10] text-[#A8D97F]" : "text-[#A3A3A3]"}`}
+                className={`rounded-md px-4 py-2 text-xs font-bold transition-all cursor-pointer ${activeTab === "requests" ? "bg-[#2A4A10] text-[#A8D97F]" : "text-[#A3A3A3]"}`}
               >
                 Active appeals ({requests.filter((request) => request.status === "open").length})
               </button>
@@ -339,7 +327,11 @@ export default function HomeFeed() {
           ) : filteredRequests.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {filteredRequests.map((request) => (
-                <RequestCard key={request.id} request={request} onFulfill={handleFulfill} />
+                <RequestCard
+                  key={request.id}
+                  request={request}
+                  onFulfill={request.requesterId === currentUser?.id ? undefined : handleFulfill}
+                />
               ))}
             </div>
           ) : (

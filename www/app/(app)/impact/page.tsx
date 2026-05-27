@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { BarChart2, CloudLightning, Droplet, Leaf, TrendingUp } from 'lucide-react';
+import { BarChart2, CloudLightning, Droplet, Leaf, TrendingUp, Gift } from 'lucide-react';
+import Link from 'next/link';
 
 import { apiClient } from '@/lib/api/client';
 import { toUserStats } from '@/lib/api/mappers';
@@ -59,9 +60,18 @@ export default function ImpactAnalyticsPage() {
                 This dashboard now reflects live API data sourced from Supabase-backed marketplace activity.
               </p>
             </div>
-            <div className="rounded-2xl border border-white/6 bg-[#0A0A0A]/60 px-6 py-4 text-center">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-[#A3A3A3]">Loop Score</span>
-              <span className="font-mono text-3xl font-black text-[#A8D97F]">{stats.loopPoints} XP</span>
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/6 bg-[#0A0A0A]/60 px-6 py-4 text-center">
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-[#A3A3A3]">Loop Score</span>
+                <span className="font-mono text-2xl font-black text-[#A8D97F]">{stats.loopPoints} XP</span>
+              </div>
+              <Link
+                href="/rewards"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#2A4A10] px-4 py-1.5 text-xs font-bold text-[#A8D97F] border border-[#A8D97F]/10 hover:bg-[#A8D97F] hover:text-[#1A3A05] hover:border-transparent active:scale-[0.98] transition-all duration-300"
+              >
+                <Gift size={13} />
+                <span>Rewards Store</span>
+              </Link>
             </div>
           </div>
         </div>

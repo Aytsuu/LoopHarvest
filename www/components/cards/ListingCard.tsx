@@ -118,7 +118,7 @@ export default function ListingCard({ listing, onClaim, onClick, hideImage = fal
                   e.stopPropagation();
                   onClaim(listing.id);
                 }}
-                className="w-full rounded-lg bg-[#A8D97F] py-2 text-center text-xs font-bold text-[#1A3A05] transition-transform hover:brightness-105 active:scale-[0.98]"
+                className="w-full rounded-lg bg-[#A8D97F] py-2 text-center text-xs font-bold text-[#1A3A05] transition-transform hover:brightness-105 active:scale-[0.98] cursor-pointer"
               >
                 Claim Listing
               </button>

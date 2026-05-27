@@ -28,8 +28,10 @@ export interface ChatMessageRow {
   sender_id: string;
   body: string;
   is_system: boolean;
-  message_type: "text" | "system" | "claim_request" | "handoff_request";
+  message_type: "text" | "image" | "system" | "claim_request" | "handoff_request";
   message_metadata: {
+    image_url?: string;
+    caption?: string | null;
     listing_id?: string;
     requested_by_user_id?: string;
     recipient_user_id?: string;

@@ -7,6 +7,7 @@ import type {
   ApiEnvelope,
   ApiImpactSummary,
   ApiListing,
+  ApiPersonalizedMatches,
   ApiRequest,
   ApiSurvey,
   ApiSurveyPayload,
@@ -133,6 +134,11 @@ export const apiClient = {
       method: "POST",
     });
   },
+  cancelListingClaim(listingId: string) {
+    return request<ApiListing>(`/listings/${listingId}/cancel`, {
+      method: "POST",
+    });
+  },
   getRequests() {
     return publicRequest<ApiRequest[]>("/requests");
   },
@@ -160,8 +166,21 @@ export const apiClient = {
       method: "POST",
     });
   },
+  closeRequest(requestId: string) {
+    return request<ApiRequest>(`/requests/${requestId}/close`, {
+      method: "POST",
+    });
+  },
+  cancelRequestFulfillment(requestId: string) {
+    return request<ApiRequest>(`/requests/${requestId}/cancel`, {
+      method: "POST",
+    });
+  },
   getImpactSummary() {
     return publicRequest<ApiImpactSummary>("/impact/summary");
+  },
+  getMyMatches() {
+    return request<ApiPersonalizedMatches>("/matches/me");
   },
   getCurrentUserSurvey() {
     return request<ApiSurvey | null>("/survey/me");

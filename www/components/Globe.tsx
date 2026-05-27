@@ -27,6 +27,7 @@ export interface GlobePin {
   status: 'open' | 'claimed' | 'completed' | 'expired';
   claimType?: 'direct' | 'message';
   donorId?: string;
+  requesterId?: string;
 }
 
 export const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
@@ -36,7 +37,14 @@ export const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
   'Sydney': { lat: -33.8688, lng: 151.2093 },
   'New York': { lat: 40.7128, lng: -74.0060 },
   'São Paulo': { lat: -23.5505, lng: -46.6333 },
-  'Paris': { lat: 48.8566, lng: 2.3522 }
+  'Paris': { lat: 48.8566, lng: 2.3522 },
+  'Manila': { lat: 14.5995, lng: 120.9842 },
+  'Quezon City': { lat: 14.6760, lng: 121.0437 },
+  'Makati': { lat: 14.5547, lng: 121.0244 },
+  'Pasig': { lat: 14.5764, lng: 121.0851 },
+  'Taguig': { lat: 14.5176, lng: 121.0509 },
+  'Cebu City': { lat: 10.3157, lng: 123.8854 },
+  'Davao City': { lat: 7.1907, lng: 125.4553 }
 };
 
 // Deterministic offsetting to prevent pins stacking on the same city
@@ -91,6 +99,9 @@ export default function Globe({
   const isOwner = currentUser && selectedPin && selectedPin.type === 'listing'
     ? currentUser.id === selectedPin.donorId
     : false;
+  const isRequestOwner = currentUser && selectedPin && selectedPin.type === 'request'
+    ? currentUser.id === selectedPin.requesterId
+    : false;
 
   React.useEffect(() => {
     setTimeout(() => {
@@ -125,7 +136,10 @@ export default function Globe({
 
     // Map active listings
     listings.forEach((l, idx) => {
-      const coords = getItemCoords(l.city || 'San Francisco', l.id, idx);
+      const coords =
+        l.latitude !== null && l.latitude !== undefined && l.longitude !== null && l.longitude !== undefined
+          ? { latitude: l.latitude, longitude: l.longitude }
+          : getItemCoords(l.city || 'San Francisco', l.id, idx);
       pinsList.push({
         id: l.id,
         name: l.donorName,
@@ -147,7 +161,10 @@ export default function Globe({
 
     // Map active requests
     requests.forEach((r, idx) => {
-      const coords = getItemCoords(r.city || 'San Francisco', r.id, idx + listings.length);
+      const coords =
+        r.latitude !== null && r.latitude !== undefined && r.longitude !== null && r.longitude !== undefined
+          ? { latitude: r.latitude, longitude: r.longitude }
+          : getItemCoords(r.city || 'San Francisco', r.id, idx + listings.length);
       pinsList.push({
         id: r.id,
         name: r.requesterName,
@@ -161,7 +178,8 @@ export default function Globe({
         city: r.city || 'San Francisco',
         timeAgo: r.timeAgo,
         description: r.description,
-        status: r.status
+        status: r.status,
+        requesterId: r.requesterId,
       });
     });
 
@@ -523,17 +541,17 @@ export default function Globe({
       {/* Dynamic Glassmorphic Action Modal */}
       {selectedPin && (
         <div 
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" 
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 cursor-pointer" 
           onClick={() => { setSelectedPin(null); onPinSelect?.(null); }}
         >
           <div 
-            className="relative w-full max-w-sm rounded-3xl bg-[#0E0E0E]/95 border border-white/10 p-6 shadow-[0_32px_64px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-200" 
+            className="relative w-full max-w-sm rounded-3xl bg-[#0E0E0E]/95 border border-white/10 p-6 shadow-[0_32px_64px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-200 cursor-default" 
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close Trigger */}
             <button 
               onClick={() => { setSelectedPin(null); onPinSelect?.(null); }}
-              className="absolute top-4 right-4 rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 hover:text-[#FFFFFF] transition"
+              className="absolute top-4 right-4 rounded-full p-1.5 text-[#A3A3A3] hover:bg-white/8 hover:text-[#FFFFFF] transition cursor-pointer"
             >
               <X size={20} />
             </button>
@@ -613,6 +631,13 @@ export default function Globe({
                     >
                       Your Listing
                     </button>
+                  ) : isRequestOwner ? (
+                    <button 
+                      disabled
+                      className="w-full rounded-xl py-3.5 text-xs font-bold tracking-wider bg-[#222222] border border-white/10 text-[#A3A3A3] opacity-80 cursor-not-allowed text-center"
+                    >
+                      Your Request
+                    </button>
                   ) : selectedPin.type === 'listing' && selectedPin.claimType === 'message' ? (
                     <button 
                       onClick={() => router.push(
@@ -626,7 +651,7 @@ export default function Globe({
                   ) : (
                     <button 
                       onClick={handleAction}
-                      className={`w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg transition duration-200 active:scale-95 ${
+                      className={`w-full rounded-xl py-3.5 text-xs font-bold tracking-wider shadow-lg transition duration-200 active:scale-95 cursor-pointer ${
                         selectedPin.type === 'listing' 
                           ? 'bg-[#A8D97F] hover:bg-[#92cc63] text-[#1A3A05]' 
                           : 'bg-[#E8A838] hover:bg-[#d89225] text-[#3D2800]'
@@ -646,7 +671,7 @@ export default function Globe({
 
                 <button 
                   onClick={() => router.push(selectedPin.type === 'listing' ? `/listings/${selectedPin.id}` : `/requests/${selectedPin.id}`)}
-                  className="w-full rounded-xl py-3.5 text-xs font-medium tracking-wider border border-white/10 hover:bg-white/5 text-[#FFFFFF] hover:text-[#A8D97F] hover:border-[#A8D97F]/30 transition duration-200 active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full rounded-xl py-3.5 text-xs font-medium tracking-wider border border-white/10 hover:bg-white/5 text-[#FFFFFF] hover:text-[#A8D97F] hover:border-[#A8D97F]/30 transition duration-200 active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>View Full Details</span>
                 </button>

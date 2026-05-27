@@ -5,6 +5,7 @@ from uuid import UUID
 
 from src.config import Settings, get_settings
 from src.exceptions import ApiException, NotFoundException
+from src.location.service import location_service
 from src.listings.schemas import Listing, ListingCreate
 from src.supabase_rest import SupabaseRestClient
 
@@ -25,6 +26,9 @@ class ListingRepository:
     async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
         raise NotImplementedError
 
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        raise NotImplementedError
+
 
 class InMemoryListingRepository(ListingRepository):
     def __init__(self) -> None:
@@ -34,10 +38,17 @@ class InMemoryListingRepository(ListingRepository):
         return list(self._listings)
 
     async def create_listing(self, payload: ListingCreate, donor_id: UUID) -> Listing:
+        coordinates = location_service.infer_coordinates(
+            city=payload.city,
+            country=payload.country,
+            detail=f"{payload.pickup_address}|{payload.title}",
+        )
         listing = Listing(
-            **payload.model_dump(),
+            **payload.model_dump(exclude={"location_latitude", "location_longitude"}),
             donor_id=donor_id,
             donor_name="Current User",
+            location_latitude=coordinates.latitude,
+            location_longitude=coordinates.longitude,
         )
         self._listings.insert(0, listing)
         return listing
@@ -98,6 +109,31 @@ class InMemoryListingRepository(ListingRepository):
             return updated_listing
         raise NotFoundException("Listing")
 
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        for index, listing in enumerate(self._listings):
+            if str(listing.id) != listing_id:
+                continue
+            if listing.status != "claimed":
+                raise ApiException(
+                    status_code=409,
+                    code="listing_claim_not_cancellable",
+                    message="Only claimed listings can be reopened.",
+                )
+            allowed_actor_ids = {listing.donor_id}
+            if listing.claimed_by is not None:
+                allowed_actor_ids.add(listing.claimed_by)
+            if actor_id not in allowed_actor_ids:
+                raise ApiException(
+                    status_code=403,
+                    code="listing_claim_cancellation_forbidden",
+                    message="You are not allowed to cancel this listing claim.",
+                )
+
+            updated_listing = listing.model_copy(update={"status": "open", "claimed_by": None})
+            self._listings[index] = updated_listing
+            return updated_listing
+        raise NotFoundException("Listing")
+
     def reset(self) -> None:
         self._listings.clear()
 
@@ -111,7 +147,7 @@ class SupabaseListingRepository(ListingRepository):
             "listings",
             columns=(
                 "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
-                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
             order="created_at.desc",
@@ -119,11 +155,18 @@ class SupabaseListingRepository(ListingRepository):
         return await self._enrich(rows)
 
     async def create_listing(self, payload: ListingCreate, donor_id: UUID) -> Listing:
+        coordinates = location_service.infer_coordinates(
+            city=payload.city,
+            country=payload.country,
+            detail=f"{payload.pickup_address}|{payload.title}",
+        )
         row = await self._rest.insert(
             "listings",
             {
                 **payload.model_dump(mode="json"),
                 "donor_id": str(donor_id),
+                "location_latitude": str(coordinates.latitude),
+                "location_longitude": str(coordinates.longitude),
             },
         )
         enriched = await self._enrich([row])
@@ -134,7 +177,7 @@ class SupabaseListingRepository(ListingRepository):
             "listings",
             columns=(
                 "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
-                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
             filters={"id": f"eq.{listing_id}"},
@@ -171,7 +214,7 @@ class SupabaseListingRepository(ListingRepository):
             "listings",
             columns=(
                 "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
-                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
             filters={"id": f"eq.{listing_id}"},
@@ -225,6 +268,54 @@ class SupabaseListingRepository(ListingRepository):
         enriched = await self._enrich([row])
         return enriched[0]
 
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        current_rows = await self._rest.select(
+            "listings",
+            columns=(
+                "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
+                "status,claimed_by,created_at"
+            ),
+            filters={"id": f"eq.{listing_id}"},
+        )
+        if not current_rows:
+            raise NotFoundException("Listing")
+
+        current = current_rows[0]
+        if current["status"] != "claimed":
+            raise ApiException(
+                status_code=409,
+                code="listing_claim_not_cancellable",
+                message="Only claimed listings can be reopened.",
+            )
+
+        donor_id = UUID(str(current["donor_id"]))
+        claimed_by_raw = current.get("claimed_by")
+        claimed_by = UUID(str(claimed_by_raw)) if claimed_by_raw else None
+        allowed_actor_ids = {donor_id}
+        if claimed_by is not None:
+            allowed_actor_ids.add(claimed_by)
+        if actor_id not in allowed_actor_ids:
+            raise ApiException(
+                status_code=403,
+                code="listing_claim_cancellation_forbidden",
+                message="You are not allowed to cancel this listing claim.",
+            )
+
+        row = await self._rest.update(
+            "listings",
+            payload={"status": "open", "claimed_by": None},
+            filters={"id": f"eq.{listing_id}", "status": "eq.claimed"},
+        )
+        if row is None:
+            raise ApiException(
+                status_code=409,
+                code="listing_claim_not_cancellable",
+                message="Only claimed listings can be reopened.",
+            )
+        enriched = await self._enrich([row])
+        return enriched[0]
+
     async def _enrich(self, rows: list[dict]) -> list[Listing]:
         donor_ids = [row["donor_id"] for row in rows]
         user_rows = await self._rest.by_ids(
@@ -242,6 +333,14 @@ class SupabaseListingRepository(ListingRepository):
             user_name = _as_str(user_row.get("display_name"))
             avatar_url = _as_str(user_row.get("avatar_url"))
 
+        inferred_coordinates = None
+        if row.get("location_latitude") is None or row.get("location_longitude") is None:
+            inferred_coordinates = location_service.infer_coordinates(
+                city=str(row["city"]),
+                country=_as_str(row.get("country")),
+                detail=f"{row['pickup_address']}|{row['title']}",
+            )
+
         return Listing(
             id=row["id"],
             donor_id=row["donor_id"],
@@ -256,6 +355,12 @@ class SupabaseListingRepository(ListingRepository):
             pickup_address=row["pickup_address"],
             city=row["city"],
             country=row["country"],
+            location_latitude=row.get("location_latitude") or (
+                inferred_coordinates.latitude if inferred_coordinates is not None else None
+            ),
+            location_longitude=row.get("location_longitude") or (
+                inferred_coordinates.longitude if inferred_coordinates is not None else None
+            ),
             pickup_window_start=row.get("pickup_window_start"),
             pickup_window_end=row.get("pickup_window_end"),
             status=row["status"],
@@ -282,6 +387,9 @@ class ListingService:
 
     async def complete_listing(self, listing_id: str, actor_id: UUID) -> Listing:
         return await self._repository.complete_listing(listing_id, actor_id)
+
+    async def cancel_claim(self, listing_id: str, actor_id: UUID) -> Listing:
+        return await self._repository.cancel_claim(listing_id, actor_id)
 
 
 def _build_listing_repository(settings: Settings) -> ListingRepository:

@@ -11,6 +11,8 @@ import {
   Loader2,
   ChevronLeft,
   Handshake,
+  ImagePlus,
+  X,
 } from 'lucide-react';
 
 import { apiClient } from '@/lib/api/client';
@@ -27,6 +29,7 @@ import {
   type ChatThreadRow,
 } from '@/lib/chat';
 import { createClient as createSupabaseClient } from '@/lib/supabase/client';
+import { getChatImagesBucket } from '@/lib/supabase/storage';
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
@@ -47,8 +50,12 @@ export default function ChatPage() {
   const [handoffSuccess, setHandoffSuccess] = React.useState(false);
   const [chatError, setChatError] = React.useState<string | null>(null);
   const [isRecipientTyping, setIsRecipientTyping] = React.useState(false);
+  const [pendingImageFile, setPendingImageFile] = React.useState<File | null>(null);
+  const [pendingImagePreviewUrl, setPendingImagePreviewUrl] = React.useState<string | null>(null);
+  const [viewerImage, setViewerImage] = React.useState<{ src: string; alt: string } | null>(null);
 
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
+  const imageInputRef = React.useRef<HTMLInputElement | null>(null);
   const typingTimeoutRef = React.useRef<number | null>(null);
   const localTypingStopTimeoutRef = React.useRef<number | null>(null);
   const typingChannelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -165,10 +172,52 @@ export default function ChatPage() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ threadId, body }: { threadId: string; body: string }) => {
+    mutationFn: async ({
+      threadId,
+      body,
+      imageFile,
+    }: {
+      threadId: string;
+      body: string | null;
+      imageFile: File | null;
+    }) => {
+      let messageType: 'text' | 'image' = 'text';
+      let messageMetadata: Record<string, string> = {};
+
+      if (imageFile && currentUser?.id) {
+        const bucket = getChatImagesBucket();
+        const extension = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const filePath = `${currentUser.id}/${crypto.randomUUID()}.${extension}`;
+
+        const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, imageFile, {
+          cacheControl: '3600',
+          contentType: imageFile.type,
+          upsert: false,
+        });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from(bucket).getPublicUrl(filePath);
+
+        if (!publicUrl) {
+          throw new Error('Image upload succeeded, but no public URL was returned.');
+        }
+
+        messageType = 'image';
+        messageMetadata = {
+          image_url: publicUrl,
+        };
+      }
+
       const { data, error } = await supabase.rpc('send_chat_message', {
         p_thread_id: threadId,
         p_body: body,
+        p_message_type: messageType,
+        p_message_metadata: messageMetadata,
       });
 
       if (error) {
@@ -180,6 +229,11 @@ export default function ChatPage() {
     onSuccess: (message) => {
       setChatError(null);
       setInputText('');
+      if (pendingImagePreviewUrl) {
+        URL.revokeObjectURL(pendingImagePreviewUrl);
+      }
+      setPendingImageFile(null);
+      setPendingImagePreviewUrl(null);
       queryClient.setQueryData<ChatMessageRow[]>(['chat-messages', message.thread_id], (existing = []) =>
         existing.some((entry) => entry.id === message.id) ? existing : [...existing, message],
       );
@@ -329,10 +383,10 @@ export default function ChatPage() {
       }
     }
 
-    if (queryListingId && queryRecipientId && threadsFetched && !bootstrapThreadRef.current) {
+    if (queryRecipientId && threadsFetched && !bootstrapThreadRef.current && !queryThreadId) {
       bootstrapThreadRef.current = true;
       const existingThread = threads.find((thread) =>
-        thread.listing_id === queryListingId &&
+        thread.listing_id === (queryListingId ?? null) &&
         (thread.participant_a_id === queryRecipientId || thread.participant_b_id === queryRecipientId),
       );
 
@@ -346,7 +400,7 @@ export default function ChatPage() {
 
       openThreadMutation.mutate({
         otherUserId: queryRecipientId,
-        listingId: queryListingId,
+        listingId: queryListingId ?? null,
       });
       return;
     }
@@ -371,6 +425,43 @@ export default function ChatPage() {
       }
     };
   }, [clearRecipientTyping]);
+
+  React.useEffect(() => {
+    if (!viewerImage) {
+      document.body.style.overflow = '';
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setViewerImage(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [viewerImage]);
+
+  React.useEffect(() => {
+    const hasOpenThreadContext = Boolean(activeThreadId || (queryRecipientId && queryRecipientName));
+    const shouldHideBottomNav = hasOpenThreadContext && !showSidebarOnMobile;
+    window.dispatchEvent(new CustomEvent('app-bottom-nav-visibility', {
+      detail: { hidden: shouldHideBottomNav },
+    }));
+
+    return () => {
+      window.dispatchEvent(new CustomEvent('app-bottom-nav-visibility', {
+        detail: { hidden: false },
+      }));
+    };
+  }, [activeThreadId, queryRecipientId, queryRecipientName, showSidebarOnMobile]);
 
   let activeThread = (activeThreadId ? threads.find((thread) => thread.id === activeThreadId) : null) ?? null;
 
@@ -558,7 +649,8 @@ export default function ChatPage() {
 
   const handleSendMessage = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!activeThreadId || !inputText.trim()) {
+    const trimmedText = inputText.trim();
+    if (!activeThreadId || (!trimmedText && !pendingImageFile)) {
       return;
     }
 
@@ -570,8 +662,48 @@ export default function ChatPage() {
 
     sendMessageMutation.mutate({
       threadId: activeThreadId,
-      body: inputText.trim(),
+      body: trimmedText || null,
+      imageFile: pendingImageFile,
     });
+  };
+
+  const resetPendingImage = React.useCallback(() => {
+    if (pendingImagePreviewUrl) {
+      URL.revokeObjectURL(pendingImagePreviewUrl);
+    }
+    setPendingImageFile(null);
+    setPendingImagePreviewUrl(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  }, [pendingImagePreviewUrl]);
+
+  const handleImageSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setChatError('Please choose an image file.');
+      event.target.value = '';
+      return;
+    }
+
+    const maxFileSizeBytes = 6 * 1024 * 1024;
+    if (file.size > maxFileSizeBytes) {
+      setChatError('Please upload an image smaller than 6 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    if (pendingImagePreviewUrl) {
+      URL.revokeObjectURL(pendingImagePreviewUrl);
+    }
+
+    setChatError(null);
+    setPendingImageFile(file);
+    setPendingImagePreviewUrl(URL.createObjectURL(file));
   };
 
   const handleThreadSelect = (threadId: string) => {
@@ -583,8 +715,45 @@ export default function ChatPage() {
 
   const unreadCount = currentUser?.id ? countUnreadThreads(threads, currentUser.id) : 0;
 
+  React.useEffect(() => {
+    return () => {
+      if (pendingImagePreviewUrl) {
+        URL.revokeObjectURL(pendingImagePreviewUrl);
+      }
+    };
+  }, [pendingImagePreviewUrl]);
+
   return (
-    <main className="min-h-screen bg-[#0A0A0A] text-[#FFFFFF] flex flex-col md:h-screen">
+    <main className="h-full min-h-0 overflow-hidden bg-[#0A0A0A] text-[#FFFFFF] flex flex-col md:h-screen">
+      {viewerImage ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/88 px-3 py-6 sm:px-6"
+          onClick={() => setViewerImage(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image viewer"
+        >
+          <div
+            className="relative flex max-h-full w-full max-w-4xl items-center justify-center"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setViewerImage(null)}
+              className="absolute right-0 top-0 z-10 flex h-10 w-10 -translate-y-12 items-center justify-center rounded-full border border-white/10 bg-[#141414]/90 text-[#F5F5F5] shadow-[0_10px_24px_rgba(0,0,0,0.4)] transition hover:bg-[#1B1B1B] sm:right-2 sm:top-2 sm:translate-y-0"
+              aria-label="Close image viewer"
+            >
+              <X size={18} />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={viewerImage.src}
+              alt={viewerImage.alt}
+              className="max-h-[82vh] w-auto max-w-full rounded-2xl border border-white/10 bg-[#101010] object-contain shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+            />
+          </div>
+        </div>
+      ) : null}
       {handoffSuccess && (
         <div className="absolute inset-0 z-50 pointer-events-none flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-[#141414] border border-[#A8D97F]/30 p-8 rounded-[2rem] text-center max-w-sm space-y-4 shadow-2xl animate-scale-in">
@@ -601,11 +770,11 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <section className={`absolute inset-0 z-20 bg-[#0A0A0A] w-full md:relative md:w-80 border-r border-white/6 flex flex-col transition-transform duration-300 ${
           showSidebarOnMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}>
-          <div className="p-4 border-b border-white/6 bg-[#141414]/90 flex items-center justify-between">
+          <div className="shrink-0 border-b border-white/6 bg-[#141414]/90 p-4 flex items-center justify-between">
             <div>
               <h1 className="font-display text-lg font-extrabold tracking-tight text-[#FFFFFF]">Messages</h1>
               <p className="text-[10px] text-[#8C8F7E] mt-1">
@@ -617,7 +786,7 @@ export default function ChatPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-white/4 p-2 space-y-1 scrollbar-none">
+          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-white/4 p-2 space-y-1 scrollbar-none">
             {threadsLoading ? (
               <div className="flex h-48 items-center justify-center text-[#A3A3A3]">
                 <Loader2 size={20} className="animate-spin" />
@@ -646,7 +815,7 @@ export default function ChatPage() {
                   <button
                     key={thread.id}
                     onClick={() => handleThreadSelect(thread.id)}
-                    className={`w-full flex items-start gap-3 p-3 rounded-xl transition-all text-left relative ${
+                    className={`w-full flex items-start gap-3 p-3 rounded-xl transition-all text-left relative cursor-pointer ${
                       isActive
                         ? 'bg-[#2A4A10]/30 border border-[#A8D97F]/20 text-white'
                         : 'border border-transparent hover:bg-white/4 text-[#A3A3A3] hover:text-[#FFFFFF]'
@@ -689,13 +858,13 @@ export default function ChatPage() {
           </div>
         </section>
 
-        <section className="flex-1 flex flex-col bg-[#141414]/30 min-w-0">
+        <section className="flex min-h-0 flex-1 flex-col bg-[#141414]/30 min-w-0">
           {activeThread && activeThreadOtherParticipant ? (
             <>
-              <div className="p-4 border-b border-white/6 bg-[#141414]/90 flex items-center gap-3">
+              <div className="shrink-0 border-b border-white/6 bg-[#141414]/90 p-4 flex items-center gap-3">
                 <button
                   onClick={() => setShowSidebarOnMobile(true)}
-                  className="md:hidden rounded-full p-1 border border-white/10 hover:bg-white/8 transition"
+                  className="md:hidden rounded-full p-1 border border-white/10 hover:bg-white/8 transition cursor-pointer"
                 >
                   <ChevronLeft size={18} />
                 </button>
@@ -717,7 +886,7 @@ export default function ChatPage() {
               </div>
 
               {activeListing ? (
-                <div className="bg-[#141414] border-b border-white/6 p-3 px-4 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-fade-in relative z-10">
+                <div className="relative z-10 shrink-0 animate-fade-in border-b border-white/6 bg-[#141414] p-3 px-4 flex flex-col justify-between gap-3 md:flex-row md:items-center">
                   <div 
                     onClick={() => router.push(`/listings/${activeListing.id}`)}
                     className="flex items-center gap-3 cursor-pointer group/listing-header hover:opacity-90 transition-all duration-200"
@@ -806,7 +975,7 @@ export default function ChatPage() {
                 </div>
               ) : null}
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-none">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 scrollbar-none">
                 <div className="max-w-xl mx-auto space-y-4 pb-24 md:pb-6">
                   {messagesLoading ? (
                     <div className="flex justify-center py-8 text-[#A3A3A3]">
@@ -872,7 +1041,7 @@ export default function ChatPage() {
                                 </p>
                               )}
 
-                              <span className="block text-[8px] text-[#8C8F7E] font-medium">
+                              <span className="block text-[10px] text-[#8C8F7E] font-medium">
                                 {formatChatTimestamp(message.created_at)}
                               </span>
                             </div>
@@ -931,7 +1100,7 @@ export default function ChatPage() {
                                 </p>
                               )}
 
-                              <span className="block text-[8px] text-[#8C8F7E] font-medium">
+                              <span className="block text-[10px] text-[#8C8F7E] font-medium">
                                 {formatChatTimestamp(message.created_at)}
                               </span>
                             </div>
@@ -947,7 +1116,53 @@ export default function ChatPage() {
                                 <CheckCircle2 size={12} />
                               </div>
                               <p className="text-[10px] font-medium leading-relaxed text-[#A3A3A3]">{message.body}</p>
-                              <span className="block text-[8px] text-[#8C8F7E] font-medium">
+                              <span className="block text-[10px] text-[#8C8F7E] font-medium">
+                                {formatChatTimestamp(message.created_at)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (message.message_type === 'image') {
+                        const isMe = currentUser?.id === message.sender_id;
+                        const imageUrl = message.message_metadata?.image_url ?? null;
+                        const caption = message.message_metadata?.caption ?? null;
+
+                        return (
+                          <div key={message.id} className={`flex gap-3 max-w-[85%] ${isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
+                            {!isMe ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={activeThreadOtherParticipant.avatarUrl ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(activeThreadOtherParticipant.name)}`}
+                                alt={activeThreadOtherParticipant.name}
+                                className="h-7 w-7 rounded-full object-cover border border-white/10 self-end shrink-0"
+                              />
+                            ) : null}
+                            <div className="space-y-1">
+                              <div className={`overflow-hidden rounded-2xl border ${isMe ? 'bg-[#A8D97F] border-[#A8D97F] rounded-br-none' : 'bg-[#141414] border-white/6 rounded-bl-none'}`}>
+                                {imageUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewerImage({ src: imageUrl, alt: caption ?? 'Shared chat image' })}
+                                    className="block w-full cursor-pointer transition-opacity hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-[#A8D97F]/60"
+                                    aria-label="View shared image"
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={imageUrl}
+                                      alt={caption ?? 'Shared chat image'}
+                                      className="max-h-72 w-full max-w-[16rem] object-cover sm:max-w-xs"
+                                    />
+                                  </button>
+                                ) : null}
+                                {caption ? (
+                                  <p className={`px-3.5 py-2.5 text-xs leading-relaxed ${isMe ? 'text-[#1A3A05] font-medium' : 'text-[#FFFFFF] font-medium'}`}>
+                                    {caption}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <span className={`block text-[10px] text-[#8C8F7E] font-semibold ${isMe ? 'text-right' : 'text-left'}`}>
                                 {formatChatTimestamp(message.created_at)}
                               </span>
                             </div>
@@ -974,7 +1189,7 @@ export default function ChatPage() {
                             }`}>
                               <p className="whitespace-pre-line">{message.body}</p>
                             </div>
-                            <span className={`block text-[8px] text-[#8C8F7E] font-semibold ${isMe ? 'text-right' : 'text-left'}`}>
+                            <span className={`block text-[10px] text-[#8C8F7E] font-semibold ${isMe ? 'text-right' : 'text-left'}`}>
                               {formatChatTimestamp(message.created_at)}
                             </span>
                           </div>
@@ -1003,8 +1218,46 @@ export default function ChatPage() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-white/6 bg-[#0A0A0A]/80 backdrop-blur-md">
+              <div className="shrink-0 border-t border-white/6 bg-[#0A0A0A]/80 p-4 backdrop-blur-md">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelection}
+                  className="hidden"
+                />
                 <form onSubmit={handleSendMessage} className="max-w-xl mx-auto flex gap-2">
+                  {pendingImagePreviewUrl ? (
+                    <div className="absolute bottom-[76px] left-4 right-4 md:left-auto md:right-auto md:bottom-[88px] md:w-[min(100%,42rem)] md:max-w-xl md:mx-auto">
+                      <div className="rounded-2xl border border-white/8 bg-[#141414]/95 p-3 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#A8D97F]">Image ready to send</span>
+                          <button
+                            type="button"
+                            onClick={resetPendingImage}
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-[#A3A3A3] hover:bg-white/8 hover:text-[#FFFFFF] cursor-pointer"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={pendingImagePreviewUrl}
+                          alt="Pending chat upload"
+                          className="max-h-48 w-full rounded-xl object-cover"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={sendMessageMutation.isPending || openThreadMutation.isPending || activeThread.id === 'temp-thread-id'}
+                    className="h-11 w-11 shrink-0 rounded-xl border border-white/10 bg-[#141414] text-[#A8D97F] hover:bg-[#1B1B1B] disabled:bg-white/4 disabled:text-white/10 transition-colors flex items-center justify-center cursor-pointer"
+                    aria-label="Attach image"
+                  >
+                    <ImagePlus size={16} />
+                  </button>
                   <input
                     type="text"
                     value={inputText}
@@ -1021,7 +1274,7 @@ export default function ChatPage() {
                   />
                   <button
                     type="submit"
-                    disabled={!inputText.trim() || sendMessageMutation.isPending || openThreadMutation.isPending || activeThread.id === 'temp-thread-id'}
+                    disabled={(!inputText.trim() && !pendingImageFile) || sendMessageMutation.isPending || openThreadMutation.isPending || activeThread.id === 'temp-thread-id'}
                     className="h-11 w-11 shrink-0 bg-[#A8D97F] hover:bg-[#B8E890] disabled:bg-white/4 text-[#1A3A05] disabled:text-white/10 transition-colors rounded-xl flex items-center justify-center cursor-pointer"
                   >
                     {sendMessageMutation.isPending || openThreadMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}

@@ -32,6 +32,8 @@ export interface ApiListing {
   pickup_address: string;
   city: string;
   country: string;
+  location_latitude: string | null;
+  location_longitude: string | null;
   pickup_window_start: string | null;
   pickup_window_end: string | null;
   status: "open" | "claimed" | "completed";
@@ -44,6 +46,7 @@ export interface ApiRequest {
   requester_id: string;
   requester_name: string | null;
   requester_avatar_url: string | null;
+  fulfilled_by: string | null;
   title: string;
   description: string | null;
   category_slug: string;
@@ -52,6 +55,8 @@ export interface ApiRequest {
   frequency: string;
   city: string;
   country: string;
+  location_latitude: string | null;
+  location_longitude: string | null;
   max_distance_km: string;
   status: "open" | "fulfilled" | "closed";
   created_at: string;
@@ -108,6 +113,8 @@ export interface Listing {
   unit: string;
   distance: number;
   city: string;
+  latitude?: number | null;
+  longitude?: number | null;
   pickupAddress: string;
   timeAgo: string;
   donorName: string;
@@ -122,6 +129,8 @@ export interface Listing {
 
 export interface RequestItem {
   id: string;
+  requesterId: string;
+  fulfilledBy?: string | null;
   title: string;
   category: CategorySlug;
   minQuantity: number;
@@ -129,12 +138,15 @@ export interface RequestItem {
   unit: string;
   frequency: "one-time" | "weekly" | "monthly";
   distance: number;
+  preferredMaxDistanceKm: number;
   city: string;
+  latitude?: number | null;
+  longitude?: number | null;
   timeAgo: string;
   requesterName: string;
   requesterAvatar: string;
   description: string;
-  status: "open" | "claimed" | "completed" | "expired";
+  status: "open" | "claimed" | "completed";
 }
 
 export interface NotificationItem {
@@ -185,4 +197,78 @@ export interface UserStats {
   listingsPosted: number;
   requestsFulfilled: number;
   loopPoints: number;
+}
+
+export interface ApiMatchReason {
+  code: string;
+  label: string;
+}
+
+export interface ApiListingMatch {
+  listing: ApiListing;
+  score: string;
+  distance_km: string | null;
+  reasons: ApiMatchReason[];
+}
+
+export interface ApiRequestMatch {
+  request: ApiRequest;
+  score: string;
+  distance_km: string | null;
+  reasons: ApiMatchReason[];
+}
+
+export interface ApiRequestMatchGroup {
+  source_request: ApiRequest;
+  matches: ApiListingMatch[];
+  total_matches: number;
+}
+
+export interface ApiListingMatchGroup {
+  source_listing: ApiListing;
+  matches: ApiRequestMatch[];
+  total_matches: number;
+}
+
+export interface ApiPersonalizedMatches {
+  auto_mode: "matches" | "marketplace";
+  request_matches: ApiRequestMatchGroup[];
+  listing_matches: ApiListingMatchGroup[];
+}
+
+export interface MatchReason {
+  code: string;
+  label: string;
+}
+
+export interface ListingMatch {
+  listing: Listing;
+  score: number;
+  distanceKm: number | null;
+  reasons: MatchReason[];
+}
+
+export interface RequestMatch {
+  request: RequestItem;
+  score: number;
+  distanceKm: number | null;
+  reasons: MatchReason[];
+}
+
+export interface RequestMatchGroup {
+  sourceRequest: RequestItem;
+  matches: ListingMatch[];
+  totalMatches: number;
+}
+
+export interface ListingMatchGroup {
+  sourceListing: Listing;
+  matches: RequestMatch[];
+  totalMatches: number;
+}
+
+export interface PersonalizedMatches {
+  autoMode: "matches" | "marketplace";
+  requestMatches: RequestMatchGroup[];
+  listingMatches: ListingMatchGroup[];
 }

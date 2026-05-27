@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useCategories } from '@/components/common/CategoriesProvider';
 import type { CategorySlug } from '@/lib/categories';
+import CategoryIcon from './CategoryIcon';
 
 interface CategoryChipProps {
   categorySlug: CategorySlug;
@@ -60,9 +61,9 @@ export default function CategoryChip({
           : ''
       }`}
     >
-      {/* Circle emoji container to keep it structured and visually consistent */}
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/5 text-xs shadow-inner">
-        {cat.emoji}
+      {/* Circle icon container to keep it structured and visually consistent */}
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/5 shadow-inner">
+        <CategoryIcon slug={categorySlug} size={11} style={{ color: hex }} />
       </span>
       <span className="truncate pr-0.5">{cat.label}</span>
     </Tag>

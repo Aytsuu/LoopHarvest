@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { Home, Search, Plus, BarChart2, Bell, LogOut, Settings, ChevronLeft, ChevronRight, MessageSquare, Gift, User } from 'lucide-react';
 import { countUnreadThreads, fetchChatThreads } from '@/lib/chat';
 import { useNotificationClient } from '@/components/common/NotificationClientProvider';
 import { createClient as createSupabaseClient } from '@/lib/supabase/client';
@@ -133,7 +133,9 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
   const items = [
     { label: 'Home Feed', icon: Home, route: '/home' },
     { label: 'Browse', icon: Search, route: '/browse' },
+    { label: 'My Profile', icon: User, route: '/profile' },
     { label: 'Impact Dashboard', icon: BarChart2, route: '/impact' },
+    { label: 'Rewards Store', icon: Gift, route: '/rewards' },
     { label: 'Notifications', icon: Bell, route: '/notifications', badge: unreadCount },
     { label: 'Messages', icon: MessageSquare, route: '/chat', badge: chatUnreadCount },
     { label: 'Settings', icon: Settings, route: '/settings' }
@@ -172,7 +174,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
       {/* Primary Action FAB */}
       <button
         onClick={onPostClick}
-        className={`group relative mb-8 flex h-12 items-center justify-center bg-[#A8D97F] font-bold text-[#1A3A05] shadow-lg transition-all duration-300 hover:bg-[#B8E890] active:scale-95 ${
+        className={`group relative mb-8 flex h-12 items-center justify-center bg-[#A8D97F] font-bold text-[#1A3A05] shadow-lg transition-all duration-300 hover:bg-[#B8E890] active:scale-95 cursor-pointer ${
           isCollapsed 
             ? 'w-12 rounded-full px-0 mx-auto' 
             : 'w-full rounded-2xl px-4 gap-2'
@@ -203,7 +205,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
             <button
               key={index}
               onClick={() => router.push(item.route)}
-              className={`group relative flex items-center rounded-xl py-3 text-sm font-semibold transition-all duration-300 ${
+              className={`group relative flex items-center rounded-xl py-3 text-sm font-semibold transition-all duration-300 cursor-pointer ${
                 isActive
                   ? 'bg-[#2A4A10] text-[#A8D97F]'
                   : 'hover:bg-white/4 hover:text-[#FFFFFF]'
@@ -249,7 +251,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
         <button
           type="button"
           onClick={onSignOutClick}
-          className={`group relative flex items-center rounded-xl py-3 text-sm font-semibold hover:bg-[#E05656]/10 hover:text-[#E05656] transition-all duration-300 ${
+          className={`group relative flex items-center rounded-xl py-3 text-sm font-semibold hover:bg-[#E05656]/10 hover:text-[#E05656] transition-all duration-300 cursor-pointer ${
             isCollapsed 
               ? 'w-12 justify-center px-0 mx-auto' 
               : 'w-full px-4 gap-4'
@@ -275,7 +277,7 @@ export default function NavigationRail({ onPostClick, onSignOutClick, isCollapse
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
-            className={`group relative flex items-center rounded-xl hover:bg-white/4 hover:text-[#FFFFFF] transition-all duration-300 ${
+            className={`group relative flex items-center rounded-xl hover:bg-white/4 hover:text-[#FFFFFF] transition-all duration-300 cursor-pointer ${
               isCollapsed 
                 ? 'h-11 w-12 justify-center px-0 mx-auto' 
                 : 'h-11 w-full px-4 gap-4'

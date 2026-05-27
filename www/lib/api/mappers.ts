@@ -1,4 +1,14 @@
-import type { ApiImpactSummary, ApiListing, ApiRequest, ApiUser, Listing, RequestItem, UserStats } from "@/lib/api/types";
+import type {
+  ApiImpactSummary,
+  ApiListing,
+  ApiPersonalizedMatches,
+  ApiRequest,
+  ApiUser,
+  Listing,
+  PersonalizedMatches,
+  RequestItem,
+  UserStats,
+} from "@/lib/api/types";
 
 function formatTimeAgo(value: string) {
   const then = new Date(value).getTime();
@@ -29,6 +39,8 @@ export function toListingCardModel(listing: ApiListing): Listing {
     unit: "kg",
     distance: 0,
     city: listing.city,
+    latitude: listing.location_latitude ? Number(listing.location_latitude) : null,
+    longitude: listing.location_longitude ? Number(listing.location_longitude) : null,
     pickupAddress: listing.pickup_address,
     timeAgo: formatTimeAgo(listing.created_at),
     donorName: listing.donor_name ?? "LoopHarvest Member",
@@ -58,9 +70,12 @@ export function toUserAvatarUrl(user: Pick<ApiUser, "avatar_url" | "display_name
 export function toRequestCardModel(request: ApiRequest): RequestItem {
   const minQuantity = Number(request.quantity_kg_min ?? "0");
   const maxQuantity = Number(request.quantity_kg_max ?? request.quantity_kg_min ?? "0");
+  const preferredMaxDistanceKm = Number(request.max_distance_km ?? "0");
 
   return {
     id: request.id,
+    requesterId: request.requester_id,
+    fulfilledBy: request.fulfilled_by,
     title: request.title,
     category: request.category_slug as RequestItem["category"],
     minQuantity,
@@ -68,14 +83,17 @@ export function toRequestCardModel(request: ApiRequest): RequestItem {
     unit: "kg",
     frequency: (request.frequency as RequestItem["frequency"]) ?? "one-time",
     distance: 0,
+    preferredMaxDistanceKm,
     city: request.city,
+    latitude: request.location_latitude ? Number(request.location_latitude) : null,
+    longitude: request.location_longitude ? Number(request.location_longitude) : null,
     timeAgo: formatTimeAgo(request.created_at),
     requesterName: request.requester_name ?? "LoopHarvest Member",
     requesterAvatar:
       request.requester_avatar_url ??
       "https://api.dicebear.com/7.x/avataaars/svg?seed=LoopHarvestRequester",
     description: request.description ?? "",
-    status: request.status === "fulfilled" ? "claimed" : request.status === "closed" ? "expired" : "open",
+    status: request.status === "fulfilled" ? "claimed" : request.status === "closed" ? "completed" : "open",
   };
 }
 
@@ -91,5 +109,37 @@ export function toUserStats(summary: ApiImpactSummary, listingsPosted = 0, reque
     listingsPosted,
     requestsFulfilled,
     loopPoints: Math.round(kgDiverted * 10 + requestsFulfilled * 30 + listingsPosted * 15),
+  };
+}
+
+export function toPersonalizedMatches(payload: ApiPersonalizedMatches): PersonalizedMatches {
+  return {
+    autoMode: payload.auto_mode,
+    requestMatches: payload.request_matches.map((group) => ({
+      sourceRequest: toRequestCardModel(group.source_request),
+      matches: group.matches.map((match) => ({
+        listing: toListingCardModel(match.listing),
+        score: Number(match.score),
+        distanceKm: match.distance_km ? Number(match.distance_km) : null,
+        reasons: match.reasons.map((reason) => ({
+          code: reason.code,
+          label: reason.label,
+        })),
+      })),
+      totalMatches: group.total_matches,
+    })),
+    listingMatches: payload.listing_matches.map((group) => ({
+      sourceListing: toListingCardModel(group.source_listing),
+      matches: group.matches.map((match) => ({
+        request: toRequestCardModel(match.request),
+        score: Number(match.score),
+        distanceKm: match.distance_km ? Number(match.distance_km) : null,
+        reasons: match.reasons.map((reason) => ({
+          code: reason.code,
+          label: reason.label,
+        })),
+      })),
+      totalMatches: group.total_matches,
+    })),
   };
 }

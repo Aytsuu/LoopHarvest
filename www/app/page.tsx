@@ -239,10 +239,10 @@ export default function LandingPage() {
               <span className="font-display text-sm font-extrabold tracking-tight text-[#A8D97F] select-none">LoopHarvest</span>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
-              <a href="/about" className="hover:text-[#FFFFFF] transition-colors">About</a>
-              <a href="/community" className="hover:text-[#FFFFFF] transition-colors">Community</a>
-              <a href="/terms" className="hover:text-[#FFFFFF] transition-colors">Terms of Service</a>
-              <a href="/privacy" className="hover:text-[#FFFFFF] transition-colors">Privacy Policy</a>
+              <a href="/about" className="hover:text-[#FFFFFF] transition-colors cursor-pointer">About</a>
+              <a href="/community" className="hover:text-[#FFFFFF] transition-colors cursor-pointer">Community</a>
+              <a href="/terms" className="hover:text-[#FFFFFF] transition-colors cursor-pointer">Terms of Service</a>
+              <a href="/privacy" className="hover:text-[#FFFFFF] transition-colors cursor-pointer">Privacy Policy</a>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-[11px]">

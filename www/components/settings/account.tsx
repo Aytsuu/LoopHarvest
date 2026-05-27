@@ -75,7 +75,7 @@ export default function Account({
               type="button"
               onClick={() => avatarInputRef.current?.click()}
               disabled={isAvatarUploading}
-              className="group relative shrink-0 rounded-full transition disabled:cursor-wait disabled:opacity-80"
+              className="group relative shrink-0 rounded-full transition cursor-pointer disabled:cursor-wait disabled:opacity-80"
               aria-label="Choose profile image"
             >
               {avatarPreviewUrl ? (

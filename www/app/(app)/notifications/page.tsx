@@ -131,8 +131,8 @@ export default function NotificationsPage() {
           </h1>
           {notifications.some(n => n.status === 'unread') ? (
             <button
-              onClick={handleMarkAllRead}
-              className="rounded-full bg-[#2A4A10] px-4 py-1.5 text-xs font-bold text-[#A8D97F] border border-[#A8D97F]/10 hover:bg-[#345A14] transition"
+               onClick={handleMarkAllRead}
+              className="rounded-full bg-[#2A4A10] px-4 py-1.5 text-xs font-bold text-[#A8D97F] border border-[#A8D97F]/10 hover:bg-[#345A14] transition cursor-pointer"
             >
               Mark all as read
             </button>
@@ -174,7 +174,7 @@ export default function NotificationsPage() {
                     animationDelay: `${idx * 50}ms`,
                     animationFillMode: 'both'
                   }}
-                  className={`group relative flex w-full items-start gap-4 rounded-xl border border-white/6 p-4 text-left transition-colors animate-fade-in-up ${
+                  className={`group relative flex w-full items-start gap-4 rounded-xl border border-white/6 p-4 text-left transition-colors animate-fade-in-up cursor-pointer ${
                     isUnread ? 'bg-[#141414]' : 'bg-[#0E0E0E]/40 opacity-70'
                   }`}
                 >
@@ -208,7 +208,7 @@ export default function NotificationsPage() {
                       event.stopPropagation();
                       void handleDelete(notif.id);
                     }}
-                    className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition rounded p-1.5 text-[#525252] hover:text-[#E05656] hover:bg-[#E05656]/10"
+                    className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition rounded p-1.5 text-[#525252] hover:text-[#E05656] hover:bg-[#E05656]/10 cursor-pointer"
                     aria-label="Delete notification"
                   >
                     <Trash2 size={15} />

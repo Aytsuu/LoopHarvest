@@ -18,6 +18,8 @@ class ListingBase(ApiModel):
     pickup_address: str = Field(min_length=1, max_length=240)
     city: str = Field(min_length=1, max_length=120)
     country: str = Field(min_length=1, max_length=120)
+    location_latitude: Decimal | None = None
+    location_longitude: Decimal | None = None
     pickup_window_start: datetime | None = None
     pickup_window_end: datetime | None = None
 

@@ -62,7 +62,7 @@ export default function Billing({
               <button
                 type="button"
                 onClick={handleUpgradePremium}
-                className="rounded-lg bg-[#A8D97F] px-3.5 py-1.5 text-xs font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
+                className="cursor-pointer rounded-lg bg-[#A8D97F] px-3.5 py-1.5 text-xs font-bold text-[#1A3A05] transition hover:bg-[#B8E890] active:scale-95 shadow-md"
               >
                 Upgrade Plan
               </button>

@@ -1,6 +1,34 @@
-from typing import Any, Literal
+"""
+Module: models.py
+Purpose: Request and response data models
+
+This module defines Pydantic models used by the AI gateway endpoints.
+"""
+
+from typing import Any, Literal, Optional, List
 
 from pydantic import BaseModel, Field
+
+class ImageInput(BaseModel):
+    source: str          # URL, base64, or file path
+    media_type: Optional[str] = None
+
+class VisionRequest(BaseModel):
+    prompt: str
+    images: List[ImageInput]
+    model: Optional[str] = None
+    max_tokens: Optional[int] = 1024
+    temperature: Optional[float] = 0.7
+    system: Optional[str] = None
+    response_mime_type: Optional[str] = None
+    response_schema: Optional[dict[str, Any]] = None
+
+class ChatRequest(BaseModel):
+    messages: list
+    model: Optional[str] = None
+    max_tokens: Optional[int] = 1024
+    temperature: Optional[float] = 0.7
+    system: Optional[str] = None
 
 
 class ErrorDetail(BaseModel):
@@ -21,11 +49,3 @@ class ErrorEnvelope(BaseModel):
 class ChatMessage(BaseModel):
     role: str = Field(min_length=1, max_length=32)
     content: str = Field(min_length=1)
-
-
-class ChatRequest(BaseModel):
-    messages: list[ChatMessage] = Field(min_length=1)
-    model: str | None = Field(default=None, min_length=1)
-    max_tokens: int = Field(default=1024, ge=1, le=16384)
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    system: str | None = Field(default=None, min_length=1)

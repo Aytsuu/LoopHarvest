@@ -649,7 +649,7 @@ export default function UserSurveyPage() {
                       }
                     }}
                     disabled={index > currentStepIndex && !isStepValid()}
-                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black transition-all ${
+                    className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black transition-all cursor-pointer disabled:cursor-not-allowed ${
                       isCompleted
                         ? "bg-[#A8D97F] text-[#1A3A05] hover:brightness-115"
                         : isActive
@@ -724,7 +724,7 @@ export default function UserSurveyPage() {
                             handleSingleSelect(activeStep.id as "role" | "frequency", opt.value);
                           }
                         }}
-                        className={`group flex items-start text-left gap-4 rounded-2xl border p-5 transition-all duration-300 backdrop-blur-md ${
+                        className={`group flex items-start text-left gap-4 rounded-2xl border p-5 transition-all duration-300 backdrop-blur-md cursor-pointer ${
                           isSelected
                             ? "border-[#A8D97F] bg-[#A8D97F]/10 shadow-[0_4px_20px_rgba(168,217,127,0.15)] active:scale-[0.98]"
                             : isDisabled
@@ -806,7 +806,7 @@ export default function UserSurveyPage() {
                         <button
                           key={marker.value}
                           onClick={() => handleSliderChange(marker.value)}
-                          className="flex flex-col items-center text-center gap-1.5 focus:outline-none group"
+                          className="flex flex-col items-center text-center gap-1.5 focus:outline-none group cursor-pointer"
                         >
                           <div
                             className={`h-2.5 w-1 rounded-full transition-all duration-300 ${
@@ -838,7 +838,7 @@ export default function UserSurveyPage() {
                       <button
                         key={item.id}
                         onClick={() => handleToggleAiConsent(item.id)}
-                        className={`group w-full flex items-center justify-between text-left gap-6 rounded-2xl border p-5 transition-all duration-300 backdrop-blur-md ${
+                        className={`group w-full flex items-center justify-between text-left gap-6 rounded-2xl border p-5 transition-all duration-300 backdrop-blur-md cursor-pointer ${
                           isChecked
                             ? "border-[#A8D97F]/30 bg-[#A8D97F]/4"
                             : "border-white/8 bg-[#141414]/40 hover:border-white/18"
@@ -889,7 +889,7 @@ export default function UserSurveyPage() {
                         <button
                           key={channel.id}
                           onClick={() => handleToggleNotificationChannel(channel.id as "push" | "email")}
-                          className={`group flex items-center text-left gap-4 rounded-2xl border p-5 transition-all duration-300 backdrop-blur-md ${
+                          className={`group flex items-center text-left gap-4 rounded-2xl border p-5 transition-all duration-300 backdrop-blur-md cursor-pointer ${
                             isChecked
                               ? "border-[#A8D97F] bg-[#A8D97F]/10 shadow-[0_4px_20px_rgba(168,217,127,0.1)]"
                               : "border-white/8 bg-[#141414]/40 hover:border-white/18 hover:bg-[#141414]/80"
@@ -949,7 +949,7 @@ export default function UserSurveyPage() {
                             <button
                               key={freq.value}
                               onClick={() => handleNotificationFrequencyChange(freq.value as "instant" | "daily" | "weekly")}
-                              className={`group rounded-xl border p-4 text-center transition-all duration-300 active:scale-[0.98] ${
+                              className={`group rounded-xl border p-4 text-center transition-all duration-300 active:scale-[0.98] cursor-pointer ${
                                 isSelected
                                   ? "border-[#A8D97F] bg-[#A8D97F]/10 text-white"
                                   : "border-white/6 bg-[#141414]/50 text-[#A3A3A3] hover:border-white/15 hover:text-white"
@@ -981,7 +981,7 @@ export default function UserSurveyPage() {
             <button
               onClick={handleBack}
               disabled={currentStepIndex === 0}
-              className="flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-5 py-2.5 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-white active:scale-95 disabled:opacity-0 disabled:pointer-events-none group"
+              className="flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-5 py-2.5 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-white active:scale-95 disabled:opacity-0 disabled:pointer-events-none group cursor-pointer"
             >
               <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
               <span>Back</span>
@@ -991,7 +991,7 @@ export default function UserSurveyPage() {
 
           <button
             onClick={handleNext}
-            className="group flex items-center gap-2 rounded-full bg-[#A8D97F] px-6 py-2.5 text-xs font-black text-[#1A3A05] shadow-lg shadow-[#A8D97F]/10 transition-all hover:brightness-105 active:scale-[0.98]"
+            className="group flex items-center gap-2 rounded-full bg-[#A8D97F] px-6 py-2.5 text-xs font-black text-[#1A3A05] shadow-lg shadow-[#A8D97F]/10 transition-all hover:brightness-105 active:scale-[0.98] cursor-pointer"
           >
             <span>
               {currentStepIndex === STEPS.length - 1 ? "Complete Onboarding" : "Next Step"}

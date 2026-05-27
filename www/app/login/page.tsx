@@ -98,7 +98,7 @@ function LoginPageContent() {
       {/* Back to landing button */}
       <button
         onClick={() => router.push('/')}
-        className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-4 py-2 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-[#FFFFFF] active:scale-95 group"
+        className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-4 py-2 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-[#FFFFFF] active:scale-95 group cursor-pointer"
       >
         <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
         <span>Back to Landing</span>
@@ -183,7 +183,7 @@ function LoginPageContent() {
           <button
             type="submit"
             disabled={isLoading}
-            className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#A8D97F] text-sm font-black text-[#1A3A05] transition-transform hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
+            className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#A8D97F] text-sm font-black text-[#1A3A05] transition-transform hover:brightness-105 active:scale-[0.98] disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A3A05] border-t-transparent" />
@@ -206,14 +206,14 @@ function LoginPageContent() {
           <button
             onClick={() => handleOAuthLogin('google')}
             disabled={isLoading}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#FFFFFF] transition-all hover:bg-[#1B1B1B] hover:border-white/20 disabled:opacity-50"
+            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#FFFFFF] transition-all hover:bg-[#1B1B1B] hover:border-white/20 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
           >
             <span>Google</span>
           </button>
           <button
             onClick={() => handleOAuthLogin('apple')}
             disabled={isLoading}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#FFFFFF] transition-all hover:bg-[#1B1B1B] hover:border-white/20 disabled:opacity-50"
+            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] text-xs font-bold text-[#FFFFFF] transition-all hover:bg-[#1B1B1B] hover:border-white/20 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
           >
             <span>Apple ID</span>
           </button>
@@ -223,7 +223,7 @@ function LoginPageContent() {
           Don&apos;t have an account?{' '}
           <button
             onClick={() => router.push('/signup')}
-            className="font-bold text-[#A8D97F] hover:underline"
+            className="font-bold text-[#A8D97F] hover:underline cursor-pointer"
           >
             Create an account
           </button>

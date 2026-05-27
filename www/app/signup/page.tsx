@@ -69,7 +69,7 @@ export default function SignupPage() {
       {/* Back to landing button */}
       <button
         onClick={() => router.push('/')}
-        className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-4 py-2 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-[#FFFFFF] active:scale-95 group"
+        className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 flex items-center gap-2 rounded-full border border-white/6 bg-[#141414]/60 px-4 py-2 text-xs font-bold text-[#A3A3A3] backdrop-blur-md transition-all hover:bg-white/4 hover:text-[#FFFFFF] active:scale-95 group cursor-pointer"
       >
         <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
         <span>Back to Landing</span>
@@ -174,7 +174,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className={`mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black transition-transform active:scale-[0.98] disabled:opacity-50 bg-[#A8D97F] text-[#1A3A05]`}
+            className={`mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black transition-transform active:scale-[0.98] disabled:opacity-50 bg-[#A8D97F] text-[#1A3A05] cursor-pointer disabled:cursor-not-allowed`}
           >
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -191,7 +191,7 @@ export default function SignupPage() {
           Already have an account?{' '}
           <button
             onClick={() => router.push('/login')}
-            className="font-bold text-[#A8D97F] hover:underline"
+            className="font-bold text-[#A8D97F] hover:underline cursor-pointer"
           >
             Sign in
           </button>

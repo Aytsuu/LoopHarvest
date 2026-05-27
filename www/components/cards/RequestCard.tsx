@@ -44,7 +44,6 @@ export default function RequestCard({ request, onFulfill, onClick }: RequestCard
       </div>
 
       <div className="mt-4 pt-3 border-t border-white/6 flex items-center justify-between">
-        {/* Requester Row */}
         <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -54,7 +53,9 @@ export default function RequestCard({ request, onFulfill, onClick }: RequestCard
           />
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-[#FFFFFF]">{request.requesterName}</span>
-            <span className="text-[9px] text-[#A3A3A3]">{request.city} · {request.distance} km</span>
+            <span className="text-[9px] text-[#A3A3A3]">
+              {request.city} | up to {request.preferredMaxDistanceKm} km
+            </span>
           </div>
         </div>
 
@@ -68,7 +69,7 @@ export default function RequestCard({ request, onFulfill, onClick }: RequestCard
                 e.stopPropagation();
                 onFulfill(request.id);
               }}
-              className="rounded-lg bg-[#A8D97F] px-3 py-1.5 text-xs font-bold text-[#1A3A05] transition hover:brightness-105 active:scale-[0.98]"
+              className="rounded-lg bg-[#A8D97F] px-3 py-1.5 text-xs font-bold text-[#1A3A05] transition hover:brightness-105 active:scale-[0.98] cursor-pointer"
             >
               Fulfill
             </button>

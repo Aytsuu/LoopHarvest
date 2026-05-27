@@ -35,13 +35,13 @@ function CheckEmailContent() {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <button
             onClick={() => router.push(`/login?signup=check-email&email=${encodeURIComponent(email)}`)}
-            className="flex-1 rounded-xl bg-[#A8D97F] px-5 py-3 text-sm font-black text-[#1A3A05] transition-transform active:scale-[0.98]"
+            className="flex-1 rounded-xl bg-[#A8D97F] px-5 py-3 text-sm font-black text-[#1A3A05] transition-transform active:scale-[0.98] cursor-pointer"
           >
             Go to Sign In
           </button>
           <button
             onClick={() => router.push('/signup')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] px-5 py-3 text-sm font-bold text-white transition-all hover:bg-[#1B1B1B] hover:border-white/20 active:scale-[0.98]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#141414] px-5 py-3 text-sm font-bold text-white transition-all hover:bg-[#1B1B1B] hover:border-white/20 active:scale-[0.98] cursor-pointer"
           >
             <ArrowLeft size={16} />
             <span>Back to Sign Up</span>
