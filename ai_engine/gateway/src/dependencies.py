@@ -1,3 +1,10 @@
+"""
+Module: dependencies.py
+Purpose: Shared FastAPI dependency functions
+
+This module provides request dependencies such as API key verification.
+"""
+
 from fastapi import Depends, Header, HTTPException, status
 
 from src.config import Settings, get_settings

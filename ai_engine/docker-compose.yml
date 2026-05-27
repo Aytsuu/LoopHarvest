@@ -12,7 +12,7 @@ services:
     build: ./gateway
     container_name: loopharvest-ai-gateway
     ports:
-      - "8000:8000"
+      - "8001:8000"
     env_file:
       - ./gateway/.env
     depends_on:

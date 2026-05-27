@@ -1,5 +1,13 @@
+"""
+Module: main.py
+Purpose: FastAPI REST API endpoints
+
+This module provides REST API endpoints for the backend to consume.
+"""
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 
 import httpx
 from dotenv import load_dotenv
@@ -9,6 +17,11 @@ from src.config import Settings, get_settings
 from src.routers import chat, vision
 
 load_dotenv()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logging.getLogger("src").setLevel(logging.INFO)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

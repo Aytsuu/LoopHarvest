@@ -1,3 +1,10 @@
+"""
+Module: chat.py
+Purpose: Chat API route handlers
+
+This module defines the FastAPI endpoint for text chat requests.
+"""
+
 from fastapi import APIRouter, Depends, Request
 
 from src.dependencies import verify_api_key

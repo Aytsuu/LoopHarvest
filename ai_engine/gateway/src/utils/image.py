@@ -1,3 +1,10 @@
+"""
+Module: image.py
+Purpose: Image encoding helper functions
+
+This module converts image inputs into base64 for upstream vision requests.
+"""
+
 import base64, httpx
 from pathlib import Path
 
@@ -18,6 +25,8 @@ async def to_base64(source: str) -> str:
     return base64.b64encode(Path(source).read_bytes()).decode("utf-8")
 
 def detect_media_type(source: str) -> str:
+    if source.startswith("data:image/") and ";" in source:
+        return source.split(";", 1)[0].replace("data:", "", 1)
     if ".png" in source:  return "image/png"
     if ".gif" in source:  return "image/gif"
     if ".webp" in source: return "image/webp"

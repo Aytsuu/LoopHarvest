@@ -1,3 +1,10 @@
+"""
+Module: models.py
+Purpose: Request and response data models
+
+This module defines Pydantic models used by the AI gateway endpoints.
+"""
+
 from typing import Any, Literal, Optional, List
 
 from pydantic import BaseModel, Field
