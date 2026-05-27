@@ -5,6 +5,7 @@ from uuid import UUID
 
 from src.config import Settings, get_settings
 from src.exceptions import ApiException, NotFoundException
+from src.location.service import location_service
 from src.requests.schemas import Request, RequestCreate
 from src.supabase_rest import SupabaseRestClient
 
@@ -37,11 +38,18 @@ class InMemoryRequestRepository(RequestRepository):
         return list(self._requests)
 
     async def create_request(self, payload: RequestCreate, requester_id: UUID) -> Request:
+        coordinates = location_service.infer_coordinates(
+            city=payload.city,
+            country=payload.country,
+            detail=f"{payload.title}|{payload.description or ''}",
+        )
         request = Request(
-            **payload.model_dump(),
+            **payload.model_dump(exclude={"location_latitude", "location_longitude"}),
             requester_id=requester_id,
             requester_name="Current User",
             fulfilled_by=None,
+            location_latitude=coordinates.latitude,
+            location_longitude=coordinates.longitude,
         )
         self._requests.insert(0, request)
         return request
@@ -125,18 +133,25 @@ class SupabaseRequestRepository(RequestRepository):
             "requests",
             columns=(
                 "id,requester_id,title,description,category_slug,quantity_kg_min,"
-                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
+                "quantity_kg_max,frequency,city,country,location_latitude,location_longitude,max_distance_km,fulfilled_by,status,created_at"
             ),
             order="created_at.desc",
         )
         return await self._enrich(rows)
 
     async def create_request(self, payload: RequestCreate, requester_id: UUID) -> Request:
+        coordinates = location_service.infer_coordinates(
+            city=payload.city,
+            country=payload.country,
+            detail=f"{payload.title}|{payload.description or ''}",
+        )
         row = await self._rest.insert(
             "requests",
             {
                 **payload.model_dump(mode="json"),
                 "requester_id": str(requester_id),
+                "location_latitude": str(coordinates.latitude),
+                "location_longitude": str(coordinates.longitude),
             },
         )
         enriched = await self._enrich([row])
@@ -147,7 +162,7 @@ class SupabaseRequestRepository(RequestRepository):
             "requests",
             columns=(
                 "id,requester_id,title,description,category_slug,quantity_kg_min,"
-                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
+                "quantity_kg_max,frequency,city,country,location_latitude,location_longitude,max_distance_km,fulfilled_by,status,created_at"
             ),
             filters={"id": f"eq.{request_id}"},
         )
@@ -183,7 +198,7 @@ class SupabaseRequestRepository(RequestRepository):
             "requests",
             columns=(
                 "id,requester_id,title,description,category_slug,quantity_kg_min,"
-                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
+                "quantity_kg_max,frequency,city,country,location_latitude,location_longitude,max_distance_km,fulfilled_by,status,created_at"
             ),
             filters={"id": f"eq.{request_id}"},
         )
@@ -223,7 +238,7 @@ class SupabaseRequestRepository(RequestRepository):
             "requests",
             columns=(
                 "id,requester_id,title,description,category_slug,quantity_kg_min,"
-                "quantity_kg_max,frequency,city,country,max_distance_km,fulfilled_by,status,created_at"
+                "quantity_kg_max,frequency,city,country,location_latitude,location_longitude,max_distance_km,fulfilled_by,status,created_at"
             ),
             filters={"id": f"eq.{request_id}"},
         )
@@ -281,6 +296,14 @@ class SupabaseRequestRepository(RequestRepository):
             user_name = _as_str(user_row.get("display_name"))
             avatar_url = _as_str(user_row.get("avatar_url"))
 
+        inferred_coordinates = None
+        if row.get("location_latitude") is None or row.get("location_longitude") is None:
+            inferred_coordinates = location_service.infer_coordinates(
+                city=str(row["city"]),
+                country=_as_str(row.get("country")),
+                detail=f"{row['title']}|{row.get('description') or ''}",
+            )
+
         return Request(
             id=row["id"],
             requester_id=row["requester_id"],
@@ -295,6 +318,12 @@ class SupabaseRequestRepository(RequestRepository):
             frequency=row["frequency"],
             city=row["city"],
             country=row["country"],
+            location_latitude=row.get("location_latitude") or (
+                inferred_coordinates.latitude if inferred_coordinates is not None else None
+            ),
+            location_longitude=row.get("location_longitude") or (
+                inferred_coordinates.longitude if inferred_coordinates is not None else None
+            ),
             max_distance_km=row["max_distance_km"],
             status=row["status"],
             created_at=row["created_at"],

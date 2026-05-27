@@ -5,6 +5,7 @@ from uuid import UUID
 
 from src.config import Settings, get_settings
 from src.exceptions import ApiException, NotFoundException
+from src.location.service import location_service
 from src.listings.schemas import Listing, ListingCreate
 from src.supabase_rest import SupabaseRestClient
 
@@ -37,10 +38,17 @@ class InMemoryListingRepository(ListingRepository):
         return list(self._listings)
 
     async def create_listing(self, payload: ListingCreate, donor_id: UUID) -> Listing:
+        coordinates = location_service.infer_coordinates(
+            city=payload.city,
+            country=payload.country,
+            detail=f"{payload.pickup_address}|{payload.title}",
+        )
         listing = Listing(
-            **payload.model_dump(),
+            **payload.model_dump(exclude={"location_latitude", "location_longitude"}),
             donor_id=donor_id,
             donor_name="Current User",
+            location_latitude=coordinates.latitude,
+            location_longitude=coordinates.longitude,
         )
         self._listings.insert(0, listing)
         return listing
@@ -139,7 +147,7 @@ class SupabaseListingRepository(ListingRepository):
             "listings",
             columns=(
                 "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
-                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
             order="created_at.desc",
@@ -147,11 +155,18 @@ class SupabaseListingRepository(ListingRepository):
         return await self._enrich(rows)
 
     async def create_listing(self, payload: ListingCreate, donor_id: UUID) -> Listing:
+        coordinates = location_service.infer_coordinates(
+            city=payload.city,
+            country=payload.country,
+            detail=f"{payload.pickup_address}|{payload.title}",
+        )
         row = await self._rest.insert(
             "listings",
             {
                 **payload.model_dump(mode="json"),
                 "donor_id": str(donor_id),
+                "location_latitude": str(coordinates.latitude),
+                "location_longitude": str(coordinates.longitude),
             },
         )
         enriched = await self._enrich([row])
@@ -162,7 +177,7 @@ class SupabaseListingRepository(ListingRepository):
             "listings",
             columns=(
                 "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
-                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
             filters={"id": f"eq.{listing_id}"},
@@ -199,7 +214,7 @@ class SupabaseListingRepository(ListingRepository):
             "listings",
             columns=(
                 "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
-                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
             filters={"id": f"eq.{listing_id}"},
@@ -258,7 +273,7 @@ class SupabaseListingRepository(ListingRepository):
             "listings",
             columns=(
                 "id,donor_id,title,description,category_slug,quantity_kg,claim_type,photo_url,"
-                "pickup_address,city,country,pickup_window_start,pickup_window_end,"
+                "pickup_address,city,country,location_latitude,location_longitude,pickup_window_start,pickup_window_end,"
                 "status,claimed_by,created_at"
             ),
             filters={"id": f"eq.{listing_id}"},
@@ -318,6 +333,14 @@ class SupabaseListingRepository(ListingRepository):
             user_name = _as_str(user_row.get("display_name"))
             avatar_url = _as_str(user_row.get("avatar_url"))
 
+        inferred_coordinates = None
+        if row.get("location_latitude") is None or row.get("location_longitude") is None:
+            inferred_coordinates = location_service.infer_coordinates(
+                city=str(row["city"]),
+                country=_as_str(row.get("country")),
+                detail=f"{row['pickup_address']}|{row['title']}",
+            )
+
         return Listing(
             id=row["id"],
             donor_id=row["donor_id"],
@@ -332,6 +355,12 @@ class SupabaseListingRepository(ListingRepository):
             pickup_address=row["pickup_address"],
             city=row["city"],
             country=row["country"],
+            location_latitude=row.get("location_latitude") or (
+                inferred_coordinates.latitude if inferred_coordinates is not None else None
+            ),
+            location_longitude=row.get("location_longitude") or (
+                inferred_coordinates.longitude if inferred_coordinates is not None else None
+            ),
             pickup_window_start=row.get("pickup_window_start"),
             pickup_window_end=row.get("pickup_window_end"),
             status=row["status"],

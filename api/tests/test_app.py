@@ -411,6 +411,76 @@ async def test_fulfiller_can_cancel_fulfilled_request(client):
     assert payload["fulfilled_by"] is None
 
 
+async def test_get_personalized_matches(client):
+    requester_user = _fake_user()
+    donor_user = AuthenticatedUser(
+        id=uuid4(),
+        email="donor@example.com",
+        display_name="Neighborhood Cafe",
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: requester_user
+    create_request_response = await client.post(
+        "/api/v1/requests",
+        json={
+            "title": "Weekly coffee grounds",
+            "description": "Need grounds for composting.",
+            "category_slug": "coffee-grounds",
+            "quantity_kg_min": "4",
+            "quantity_kg_max": "10",
+            "frequency": "weekly",
+            "city": "Manila",
+            "country": "Philippines",
+            "max_distance_km": "25",
+        },
+    )
+    assert create_request_response.status_code == 201
+
+    app.dependency_overrides[get_current_user] = lambda: donor_user
+    create_listing_response = await client.post(
+        "/api/v1/listings",
+        json={
+            "title": "Cafe grounds batch",
+            "description": "Fresh grounds from espresso service.",
+            "category_slug": "coffee-grounds",
+            "quantity_kg": "6",
+            "claim_type": "message",
+            "pickup_address": "Escolta",
+            "city": "Manila",
+            "country": "Philippines",
+        },
+    )
+    assert create_listing_response.status_code == 201
+
+    create_non_match_response = await client.post(
+        "/api/v1/listings",
+        json={
+            "title": "Fruit waste crate",
+            "description": "Mixed fruit trimmings.",
+            "category_slug": "fruit-waste",
+            "quantity_kg": "7",
+            "claim_type": "direct",
+            "pickup_address": "BGC",
+            "city": "Taguig",
+            "country": "Philippines",
+        },
+    )
+    assert create_non_match_response.status_code == 201
+
+    app.dependency_overrides[get_current_user] = lambda: requester_user
+    matches_response = await client.get("/api/v1/matches/me")
+    app.dependency_overrides.clear()
+
+    assert matches_response.status_code == 200
+    payload = matches_response.json()["data"]
+    assert payload["auto_mode"] == "matches"
+    assert len(payload["request_matches"]) == 1
+    assert payload["request_matches"][0]["total_matches"] == 1
+    assert payload["request_matches"][0]["matches"][0]["listing"]["title"] == "Cafe grounds batch"
+    assert payload["request_matches"][0]["matches"][0]["reasons"][0]["code"] == "same_category"
+    assert payload["listing_matches"] == []
+
+
 async def test_missing_category_returns_enveloped_not_found(client):
     response = await client.get("/api/v1/categories/does-not-exist")
 
